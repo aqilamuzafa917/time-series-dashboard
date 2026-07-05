@@ -1,0 +1,6 @@
+[
+  { "metric": "cpu_usage",    "warning_high": 80,  "critical_high": 95  },
+  { "metric": "memory_usage", "warning_high": 75,  "critical_high": 90  },
+  { "metric": "temperature",  "warning_high": 70,  "critical_high": 85  },
+  { "metric": "disk_io",      "warning_high": 200, "critical_high": 400 }
+]
