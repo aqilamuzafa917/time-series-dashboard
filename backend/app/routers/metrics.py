@@ -71,7 +71,7 @@ async def metrics_summary(
         SELECT
             source_id,
             metric,
-            LAST(value)  AS current,
+            selector_last(value, time)['value'] AS current,
             AVG(value)   AS avg,
             MIN(value)   AS min,
             MAX(value)   AS max,
@@ -80,6 +80,7 @@ async def metrics_summary(
         {where_clause}
         GROUP BY source_id, metric
     """
+
 
     rows = await influx.query_sql(sql, params, settings)
 

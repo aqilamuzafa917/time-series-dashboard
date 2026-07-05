@@ -45,13 +45,16 @@ async def query_sql(sql: str, params: dict, settings: Settings) -> list[dict]:
                 json=body,
                 timeout=30.0,
             )
-    except httpx.RequestError:
+    except httpx.RequestError as e:
+        print(f"DEBUG: InfluxDB query_sql RequestError: {e}")
         raise HTTPException(status_code=503, detail="InfluxDB unavailable")
 
     if not response.is_success:
+        print(f"DEBUG: InfluxDB query_sql non-2xx response: {response.status_code} {response.text}")
         raise HTTPException(status_code=503, detail="InfluxDB unavailable")
 
     return response.json()
+
 
 
 async def write_lp(lp: str, settings: Settings) -> None:
