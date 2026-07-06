@@ -122,16 +122,14 @@ export default function ExplorerPage() {
 
   // 1. On Mount: Fetch initial sources and metrics from database
   useEffect(() => {
-    apiGet<SummaryItem[]>("/api/metrics/summary")
+    apiGet<{sources: string[], metrics: string[]}>("/api/metrics/list")
       .then((data) => {
-        const uniqueSources = Array.from(new Set(data.map((d) => d.source_id)));
-        const uniqueMetrics = Array.from(new Set(data.map((d) => d.metric)));
-        setSources(uniqueSources);
-        setMetrics(uniqueMetrics);
+        setSources(data.sources);
+        setMetrics(data.metrics);
         
         // Auto-select first source and metric by default to show initial graph
-        if (uniqueSources.length > 0) setSelectedSources([uniqueSources[0]]);
-        if (uniqueMetrics.length > 0) setSelectedMetrics([uniqueMetrics[0]]);
+        if (data.sources.length > 0) setSelectedSources([data.sources[0]]);
+        if (data.metrics.length > 0) setSelectedMetrics([data.metrics[0]]);
       })
       .catch((err) => {
         console.error("Failed to load metadata dropdowns:", err);
@@ -213,8 +211,7 @@ export default function ExplorerPage() {
     setRetryCount((prev) => prev + 1);
   };
 
-  // Curated list of color hexes to give lines a distinct, vibrant look in dark mode
-  const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#0088fe", "#00c49f", "#ffbb28", "#ff8042"];
+  const COLORS = ["#1A8FE3", "#F5A623", "#2FBF9F", "#6FCF97", "#D6249F", "#8884d8", "#FF8042"];
 
   return (
     <div>
@@ -299,7 +296,7 @@ export default function ExplorerPage() {
                   data={chartData}
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2b2d31" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--text-muted))" opacity={0.3} />
                   <XAxis
                     dataKey="displayTime"
                     stroke="hsl(var(--text-secondary))"

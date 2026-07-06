@@ -201,6 +201,7 @@ async def metrics_latest(
     sql = f"""
         SELECT time, source_id, source_type, metric, value, unit
         FROM {settings.influxdb_measurement}
+        WHERE time >= now() - INTERVAL '6 hours'
         ORDER BY time DESC
         LIMIT $limit
     """
@@ -210,17 +211,12 @@ async def metrics_latest(
 
 
 @router.get("/metrics/list")
-async def metrics_list(settings: Settings = Depends(get_settings)):
-    sql_sources = f"SELECT DISTINCT source_id FROM {settings.influxdb_measurement}"
-    sql_metrics = f"SELECT DISTINCT metric FROM {settings.influxdb_measurement}"
+async def metrics_list(request: Request):
+    # Fetch from memory rather than querying the database to prevent file limit scans
+    sources = [s.get("source_id") for s in getattr(request.app.state, "sources", []) if s.get("source_id")]
+    metrics = [t.get("metric") for t in getattr(request.app.state, "thresholds", []) if t.get("metric")]
     
-    sources_rows = await influx.query_sql(sql_sources, {}, settings)
-    metrics_rows = await influx.query_sql(sql_metrics, {}, settings)
-    
-    sources = [r.get("source_id") for r in sources_rows if r.get("source_id")]
-    metrics = [r.get("metric") for r in metrics_rows if r.get("metric")]
-    
-    return {"sources": sources, "metrics": metrics}
+    return {"sources": list(set(sources)), "metrics": list(set(metrics))}
 
 
 @router.get("/metrics/detail")

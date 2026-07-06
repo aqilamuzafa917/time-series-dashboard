@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "source_id": "string",
+    "display_name": "string",
+    "source_type": "string",
+    "description": "",
+    "active": true
+  }
+]

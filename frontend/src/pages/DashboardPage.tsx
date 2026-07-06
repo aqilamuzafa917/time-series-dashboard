@@ -103,7 +103,7 @@ export default function DashboardPage() {
     return Array.from(keys);
   }, [timeseriesData]);
 
-  const colors = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+  const colors = ["#1A8FE3", "#F5A623", "#2FBF9F", "#6FCF97", "#D6249F", "#8884d8", "#FF8042"];
 
   return (
     <div>
@@ -195,7 +195,7 @@ export default function DashboardPage() {
               <div style={{ height: "300px", width: "100%" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--text-muted))" opacity={0.3} />
                     <XAxis dataKey="time" />
                     <YAxis />
                     <Tooltip />

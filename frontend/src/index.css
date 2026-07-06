@@ -1,28 +1,30 @@
-/* index.css - Premium Dark Mode Design System */
-
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  
-  /* HSL Color Tokens */
-  --bg-main: 224 71% 4%;
-  --bg-card: 224 71% 7%;
-  --bg-card-hover: 224 71% 10%;
-  
-  --border-glass: 217.2 32.6% 17.5% / 0.4;
-  --border-focus: 262.1 83.3% 57.8%;
-  
-  --text-primary: 210 40% 98%;
-  --text-secondary: 215.4 16.3% 56.9%;
-  --text-muted: 217.2 32.6% 40%;
-  
-  /* State Colors */
-  --color-ok: 142.1 76.2% 36.3%;      /* Emerald */
-  --color-warning: 37.9 90.2% 48.2%;  /* Amber */
-  --color-critical: 346.8 77.2% 49.8%;/* Rose */
-  
-  --color-primary: 262.1 83.3% 57.8%; /* Violet */
-  --color-primary-light: 263.4 70% 50.4%;
-  
+
+  /* HSL Color Tokens — Light Mode (AVEVA Historian Client Web palette) */
+  --bg-main: 210 20% 98%;
+  --bg-card: 0 0% 100%;
+  --bg-card-hover: 210 25% 96%;
+
+  --border-glass: 214 20% 88% / 1;
+  --border-focus: 205 90% 45%;
+
+  --text-primary: 222 25% 16%;
+  --text-secondary: 215 15% 46%;
+  --text-muted: 215 15% 68%;
+
+  /* State Colors — matched to Historian chart trace colors */
+  --color-ok: 152 55% 38%;
+  /* Green — FlowOut / Level trace */
+  --color-warning: 32 95% 54%;
+  /* Orange — Piezo / FlowIn trace */
+  --color-critical: 330 78% 48%;
+  /* Magenta — alarm marker / Batch bar */
+
+  --color-primary: 205 90% 45%;
+  /* Blue — Agitator trace / AVEVA brand */
+  --color-primary-light: 199 89% 55%;
+
   /* Transitions */
   --transition-fast: 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   --transition-normal: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -55,7 +57,7 @@ body {
 .sidebar {
   width: 260px;
   background: linear-gradient(180deg, hsl(var(--bg-card)) 0%, hsl(var(--bg-main)) 100%);
-  border-right: 1px solid rgba(var(--border-glass));
+  border-right: 1px solid hsl(var(--border-glass));
   display: flex;
   flex-direction: column;
   padding: 2rem 1.5rem;
@@ -78,9 +80,7 @@ body {
   font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: -0.025em;
-  background: linear-gradient(135deg, #fff 0%, hsl(var(--text-secondary)) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: hsl(var(--text-primary));
 }
 
 .nav-links {
@@ -110,10 +110,10 @@ body {
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, hsl(var(--color-primary) / 0.15) 0%, hsl(var(--color-primary) / 0.05) 100%);
-  color: hsl(var(--text-primary));
+  background: linear-gradient(135deg, hsl(var(--color-primary) / 0.12) 0%, hsl(var(--color-primary) / 0.04) 100%);
+  color: hsl(var(--color-primary));
   border: 1px solid hsl(var(--color-primary) / 0.3);
-  box-shadow: 0 4px 20px -2px hsl(var(--color-primary) / 0.15);
+  box-shadow: 0 4px 16px -4px hsl(var(--color-primary) / 0.15);
 }
 
 .nav-icon {
@@ -137,6 +137,7 @@ body {
   font-weight: 700;
   letter-spacing: -0.03em;
   margin-bottom: 0.25rem;
+  color: hsl(var(--text-primary));
 }
 
 .page-subtitle {
@@ -152,28 +153,36 @@ body {
   margin-bottom: 2.5rem;
 }
 
-/* Card Glassmorphism Design */
+/* Card design — flat, subtle elevation like Historian panels */
 .card {
-  background: linear-gradient(135deg, hsl(var(--bg-card)) 0%, hsl(var(--bg-card) / 0.8) 100%);
-  border: 1px solid rgba(var(--border-glass));
+  background-color: hsl(var(--bg-card));
+  border: 1px solid hsl(var(--border-glass));
   border-radius: 12px;
   padding: 1.5rem;
   transition: transform var(--transition-normal), border-color var(--transition-fast), box-shadow var(--transition-normal);
-  backdrop-filter: blur(12px);
   position: relative;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
 }
 
 .card:hover {
   transform: translateY(-4px);
-  border-color: hsl(var(--text-muted) / 0.6);
-  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5);
+  border-color: hsl(var(--text-muted) / 0.5);
+  box-shadow: 0 12px 24px -8px rgba(16, 24, 40, 0.12);
 }
 
 /* Highlight borders based on threshold status */
-.card-ok { border-left: 4px solid hsl(var(--color-ok)); }
-.card-warning { border-left: 4px solid hsl(var(--color-warning)); }
-.card-critical { border-left: 4px solid hsl(var(--color-critical)); }
+.card-ok {
+  border-left: 4px solid hsl(var(--color-ok));
+}
+
+.card-warning {
+  border-left: 4px solid hsl(var(--color-warning));
+}
+
+.card-critical {
+  border-left: 4px solid hsl(var(--color-critical));
+}
 
 .card-header-info {
   display: flex;
@@ -206,17 +215,17 @@ body {
 }
 
 .badge-ok {
-  background-color: hsl(var(--color-ok) / 0.15);
+  background-color: hsl(var(--color-ok) / 0.12);
   color: hsl(var(--color-ok));
 }
 
 .badge-warning {
-  background-color: hsl(var(--color-warning) / 0.15);
+  background-color: hsl(var(--color-warning) / 0.14);
   color: hsl(var(--color-warning));
 }
 
 .badge-critical {
-  background-color: hsl(var(--color-critical) / 0.15);
+  background-color: hsl(var(--color-critical) / 0.12);
   color: hsl(var(--color-critical));
 }
 
@@ -231,6 +240,7 @@ body {
   font-size: 2.25rem;
   font-weight: 700;
   letter-spacing: -0.04em;
+  color: hsl(var(--text-primary));
 }
 
 .card-unit {
@@ -243,7 +253,7 @@ body {
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(var(--border-glass));
+  border-top: 1px solid hsl(var(--border-glass));
 }
 
 .stat-box {
@@ -259,12 +269,13 @@ body {
 .stat-val {
   font-size: 0.9rem;
   font-weight: 600;
+  color: hsl(var(--text-primary));
 }
 
 /* Time Range & Filters Controls */
 .filter-bar {
   background-color: hsl(var(--bg-card));
-  border: 1px solid rgba(var(--border-glass));
+  border: 1px solid hsl(var(--border-glass));
   border-radius: 12px;
   padding: 1.25rem;
   margin-bottom: 2rem;
@@ -272,6 +283,7 @@ body {
   flex-wrap: wrap;
   gap: 1.25rem;
   align-items: flex-end;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
 }
 
 .filter-group {
@@ -290,7 +302,7 @@ body {
 
 .input-control {
   background-color: hsl(var(--bg-main));
-  border: 1px solid rgba(var(--border-glass));
+  border: 1px solid hsl(var(--border-glass));
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
   color: hsl(var(--text-primary));
@@ -302,12 +314,12 @@ body {
 
 .input-control:focus {
   border-color: hsl(var(--border-focus));
-  box-shadow: 0 0 0 2px hsl(var(--color-primary) / 0.2);
+  box-shadow: 0 0 0 2px hsl(var(--color-primary) / 0.15);
 }
 
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.7;
+  filter: none;
+  opacity: 0.6;
   cursor: pointer;
 }
 
@@ -369,6 +381,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .pulse-green {
   background-color: hsl(var(--color-ok));
 }
+
 .pulse-green::after {
   background-color: hsl(var(--color-ok));
 }
@@ -376,6 +389,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .pulse-red {
   background-color: hsl(var(--color-critical));
 }
+
 .pulse-red::after {
   background-color: hsl(var(--color-critical));
 }
@@ -385,6 +399,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     transform: scale(1);
     opacity: 0.8;
   }
+
   100% {
     transform: scale(2.4);
     opacity: 0;
@@ -394,20 +409,22 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 /* Table Style */
 .table-container {
   background-color: hsl(var(--bg-card));
-  border: 1px solid rgba(var(--border-glass));
+  border: 1px solid hsl(var(--border-glass));
   border-radius: 12px;
   overflow: hidden;
   margin-top: 2rem;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
 }
 
 .table-header-box {
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid rgba(var(--border-glass));
+  border-bottom: 1px solid hsl(var(--border-glass));
 }
 
 .table-title {
   font-size: 1.1rem;
   font-weight: 700;
+  color: hsl(var(--text-primary));
 }
 
 .table-wrapper {
@@ -425,18 +442,18 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   padding: 0.75rem 1.5rem;
   color: hsl(var(--text-secondary));
   font-weight: 600;
-  background-color: hsl(var(--bg-card-hover) / 0.3);
-  border-bottom: 1px solid rgba(var(--border-glass));
+  background-color: hsl(var(--bg-card-hover));
+  border-bottom: 1px solid hsl(var(--border-glass));
 }
 
 .metric-table td {
   padding: 0.85rem 1.5rem;
-  border-bottom: 1px solid rgba(var(--border-glass) / 0.5);
+  border-bottom: 1px solid hsl(var(--border-glass) / 0.6);
   color: hsl(var(--text-primary));
 }
 
 .metric-table tr:hover td {
-  background-color: hsl(var(--bg-card-hover) / 0.2);
+  background-color: hsl(var(--bg-card-hover));
 }
 
 .text-muted-col {
@@ -463,11 +480,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error-alert {
-  background-color: hsl(var(--color-critical) / 0.1);
+  background-color: hsl(var(--color-critical) / 0.08);
   border: 1px solid hsl(var(--color-critical) / 0.3);
   color: hsl(var(--color-critical));
   border-radius: 8px;
@@ -484,23 +503,54 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: hsl(var(--text-secondary));
   background-color: hsl(var(--bg-card));
   border-radius: 12px;
-  border: 1px dashed rgba(var(--border-glass));
+  border: 1px dashed hsl(var(--border-glass));
 }
 
 /* Recharts styling tweaks */
 .chart-container-card {
   padding: 1.5rem;
   background-color: hsl(var(--bg-card));
-  border: 1px solid rgba(var(--border-glass));
+  border: 1px solid hsl(var(--border-glass));
   border-radius: 12px;
   margin-bottom: 2rem;
   height: 400px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
 }
+
 .recharts-tooltip-cursor {
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(16, 24, 40, 0.08);
 }
+
 .recharts-default-tooltip {
   background-color: hsl(var(--bg-card)) !important;
-  border: 1px solid rgba(var(--border-glass)) !important;
+  border: 1px solid hsl(var(--border-glass)) !important;
   border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.1) !important;
 }
+
+/* Trend line trace colors — matched to AVEVA Historian chart palette */
+.trace-blue {
+  color: #1A8FE3;
+}
+
+/* Agitator (rpm) */
+.trace-orange {
+  color: #F5A623;
+}
+
+/* FlowIn (l/sec) */
+.trace-teal {
+  color: #2FBF9F;
+}
+
+/* FlowOut (l/min) */
+.trace-green {
+  color: #6FCF97;
+}
+
+/* Level (liters) */
+.trace-magenta {
+  color: #D6249F;
+}
+
+/* Batch / Alarm marker */
