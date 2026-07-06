@@ -161,6 +161,31 @@ async def metrics_timeseries(
     """
 
     rows = await influx.query_sql(sql, params, settings)
+
+    unit_sql = f"""
+        SELECT
+            DATE_BIN(INTERVAL '{interval}', time, TIMESTAMP '1970-01-01') AS time,
+            source_id,
+            metric,
+            selector_last(unit, time)['unit'] AS unit
+        FROM device_metrics
+        {where_clause}
+        GROUP BY 1, source_id, metric
+    """
+    unit_rows = await influx.query_sql(unit_sql, params, settings)
+    unit_map = { (r.get("time"), r.get("source_id"), r.get("metric")): r.get("unit") for r in unit_rows }
+
+    thresholds_map = _thresholds_by_metric(request)
+    for row in rows:
+        key = (row.get("time"), row.get("source_id"), row.get("metric"))
+        row["unit"] = unit_map.get(key)
+        
+        avg_val = row.get("avg")
+        if avg_val is not None:
+            metric_name = row.get("metric", "")
+            t = thresholds_map.get(metric_name, {})
+            row["status"] = compute_status(avg_val, t)
+
     return rows
 
 
@@ -182,3 +207,114 @@ async def metrics_latest(
 
     rows = await influx.query_sql(sql, params, settings)
     return rows
+
+
+@router.get("/metrics/list")
+async def metrics_list(settings: Settings = Depends(get_settings)):
+    sql_sources = "SELECT DISTINCT source_id FROM device_metrics"
+    sql_metrics = "SELECT DISTINCT metric FROM device_metrics"
+    
+    sources_rows = await influx.query_sql(sql_sources, {}, settings)
+    metrics_rows = await influx.query_sql(sql_metrics, {}, settings)
+    
+    sources = [r.get("source_id") for r in sources_rows if r.get("source_id")]
+    metrics = [r.get("metric") for r in metrics_rows if r.get("metric")]
+    
+    return {"sources": sources, "metrics": metrics}
+
+
+@router.get("/metrics/detail")
+async def metrics_detail(
+    request: Request,
+    source_id: str = Query(...),
+    metric: str = Query(...),
+    start: Optional[str] = Query(default=None),
+    end: Optional[str] = Query(default=None),
+    interval: str = Query(default="5m"),
+    settings: Settings = Depends(get_settings),
+):
+    if interval not in VALID_INTERVALS:
+        raise HTTPException(status_code=422, detail="Invalid interval")
+        
+    conditions = ["source_id = $sid", "metric = $met"]
+    params: dict = {"sid": source_id, "met": metric}
+    
+    if start:
+        conditions.append("time >= $start")
+        params["start"] = start
+    if end:
+        conditions.append("time < $end")
+        params["end"] = end
+        
+    where_clause = f"WHERE {' AND '.join(conditions)}"
+    
+    # 1. Summary
+    sql_summary = f"""
+        SELECT
+            selector_last(value, time)['value'] AS current,
+            AVG(value)   AS avg,
+            MIN(value)   AS min,
+            MAX(value)   AS max,
+            COUNT(*)     AS count
+        FROM device_metrics
+        {where_clause}
+    """
+    summary_rows = await influx.query_sql(sql_summary, params, settings)
+    
+    thresholds_map = _thresholds_by_metric(request)
+    t = thresholds_map.get(metric, {})
+    
+    summary_item = None
+    if summary_rows:
+        r = summary_rows[0]
+        current = r.get("current") or 0.0
+        summary_item = {
+            "source_id": source_id,
+            "metric": metric,
+            "current": current,
+            "avg": r.get("avg"),
+            "min": r.get("min"),
+            "max": r.get("max"),
+            "count": r.get("count"),
+            "status": compute_status(current, t)
+        }
+        
+    # 2. Timeseries
+    sql_ts = f"""
+        SELECT
+            DATE_BIN(INTERVAL '{interval}', time, TIMESTAMP '1970-01-01') AS time,
+            AVG(value) AS avg,
+            MIN(value) AS min,
+            MAX(value) AS max,
+            COUNT(*)   AS count
+        FROM device_metrics
+        {where_clause}
+        GROUP BY 1
+        ORDER BY 1
+    """
+    ts_rows = await influx.query_sql(sql_ts, params, settings)
+    
+    # 3. Unit for timeseries
+    sql_unit = f"""
+        SELECT
+            DATE_BIN(INTERVAL '{interval}', time, TIMESTAMP '1970-01-01') AS time,
+            selector_last(unit, time)['unit'] AS unit
+        FROM device_metrics
+        {where_clause}
+        GROUP BY 1
+    """
+    unit_rows = await influx.query_sql(sql_unit, params, settings)
+    unit_map = {r.get("time"): r.get("unit") for r in unit_rows}
+    
+    for row in ts_rows:
+        row["source_id"] = source_id
+        row["metric"] = metric
+        row["unit"] = unit_map.get(row.get("time"))
+        avg_val = row.get("avg")
+        if avg_val is not None:
+            row["status"] = compute_status(avg_val, t)
+            
+    return {
+        "summary": summary_item,
+        "timeseries": ts_rows
+    }

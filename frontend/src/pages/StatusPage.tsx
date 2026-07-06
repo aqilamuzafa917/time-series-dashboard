@@ -94,15 +94,34 @@ export default function StatusPage() {
               )}
             </div>
           </div>
-
-          {/* Timestamp details */}
-          <div className="card" style={{ marginTop: "1rem" }}>
-            <h4 style={{ fontSize: "0.9rem", fontWeight: 600, color: "hsl(var(--text-secondary))", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
-              Last Verified Timestamp
-            </h4>
-            <p style={{ fontFamily: "monospace", fontSize: "1rem" }}>
-              {new Date(data.timestamp).toLocaleString()}
-            </p>
+          
+          <div className="grid-summary" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+            <div className="card">
+              <h4 style={{ fontSize: "0.9rem", fontWeight: 600, color: "hsl(var(--text-secondary))", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+                Database (InfluxDB 3 equivalent of Bucket)
+              </h4>
+              <p style={{ fontFamily: "monospace", fontSize: "1.2rem", fontWeight: 600 }}>
+                {data.database || "Unknown"}
+              </p>
+            </div>
+            
+            <div className="card">
+              <h4 style={{ fontSize: "0.9rem", fontWeight: 600, color: "hsl(var(--text-secondary))", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+                Latest Ingested
+              </h4>
+              <p style={{ fontFamily: "monospace", fontSize: "1.1rem" }}>
+                {data.latest_ingested_at ? new Date(data.latest_ingested_at).toLocaleString() : "No data"}
+              </p>
+            </div>
+            
+            <div className="card">
+              <h4 style={{ fontSize: "0.9rem", fontWeight: 600, color: "hsl(var(--text-secondary))", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+                Last Verified Timestamp
+              </h4>
+              <p style={{ fontFamily: "monospace", fontSize: "1.1rem" }}>
+                {new Date(data.timestamp).toLocaleString()}
+              </p>
+            </div>
           </div>
         </div>
       )}
