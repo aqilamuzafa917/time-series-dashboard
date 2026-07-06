@@ -15,7 +15,7 @@ async def health(settings: Settings = Depends(get_settings)):
     latest_ingested_at = None
     if connected:
         try:
-            sql = "SELECT MAX(time) AS latest FROM device_metrics"
+            sql = f"SELECT MAX(time) AS latest FROM {settings.influxdb_measurement}"
             rows = await influx.query_sql(sql, {}, settings)
             if rows and rows[0].get("latest"):
                 latest_ingested_at = rows[0]["latest"]

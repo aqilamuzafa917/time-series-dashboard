@@ -22,6 +22,7 @@ services:
       INFLUXDB_URL: ${INFLUXDB_URL}
       INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
       INFLUXDB_DATABASE: ${INFLUXDB_DATABASE}
+      INFLUXDB_MEASUREMENT: ${INFLUXDB_MEASUREMENT}
     volumes:
       - ./backend/config:/app/config
     # depends_on:

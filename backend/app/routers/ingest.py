@@ -37,12 +37,12 @@ async def ingest_manual(payload: ManualIngest, settings: Settings = Depends(get_
             dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
             ns = int(dt.timestamp() * 1e9)
             
-            line = f'device_metrics,source_id={payload.source_id},source_type=unknown,metric={m.metric},unit={m.unit} value={m.value} {ns}'
+            line = f'{settings.influxdb_measurement},source_id={payload.source_id},source_type=unknown,metric={m.metric},unit={m.unit} value={m.value} {ns}'
             lp_lines.append(line)
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid timestamp format")
             
-    # Write to device_metrics
+    # Write to {settings.influxdb_measurement}
     lp_data = "\n".join(lp_lines)
     await influx.write_lp(lp_data, settings)
     
@@ -81,7 +81,7 @@ async def ingest_batch(file: UploadFile = File(...), settings: Settings = Depend
             dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
             ns = int(dt.timestamp() * 1e9)
             
-            line = f'device_metrics,source_id={sid},source_type=unknown,metric={metric},unit={unit} value={val} {ns}'
+            line = f'{settings.influxdb_measurement},source_id={sid},source_type=unknown,metric={metric},unit={unit} value={val} {ns}'
             valid_lines.append(line)
             
         except Exception as e:

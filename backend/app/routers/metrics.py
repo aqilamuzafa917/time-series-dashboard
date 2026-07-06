@@ -76,7 +76,7 @@ async def metrics_summary(
             MIN(value)   AS min,
             MAX(value)   AS max,
             COUNT(*)     AS count
-        FROM device_metrics
+        FROM {settings.influxdb_measurement}
         {where_clause}
         GROUP BY source_id, metric
     """
@@ -154,7 +154,7 @@ async def metrics_timeseries(
             MIN(value) AS min,
             MAX(value) AS max,
             COUNT(*)   AS count
-        FROM device_metrics
+        FROM {settings.influxdb_measurement}
         {where_clause}
         GROUP BY 1, source_id, metric
         ORDER BY 1
@@ -167,8 +167,8 @@ async def metrics_timeseries(
             DATE_BIN(INTERVAL '{interval}', time, TIMESTAMP '1970-01-01') AS time,
             source_id,
             metric,
-            selector_last(unit, time)['unit'] AS unit
-        FROM device_metrics
+            selector_last(unit, time)['value'] AS unit
+        FROM {settings.influxdb_measurement}
         {where_clause}
         GROUP BY 1, source_id, metric
     """
@@ -198,9 +198,9 @@ async def metrics_latest(
     capped_limit = min(limit, 100)
     params = {"limit": capped_limit}
 
-    sql = """
+    sql = f"""
         SELECT time, source_id, source_type, metric, value, unit
-        FROM device_metrics
+        FROM {settings.influxdb_measurement}
         ORDER BY time DESC
         LIMIT $limit
     """
@@ -211,8 +211,8 @@ async def metrics_latest(
 
 @router.get("/metrics/list")
 async def metrics_list(settings: Settings = Depends(get_settings)):
-    sql_sources = "SELECT DISTINCT source_id FROM device_metrics"
-    sql_metrics = "SELECT DISTINCT metric FROM device_metrics"
+    sql_sources = f"SELECT DISTINCT source_id FROM {settings.influxdb_measurement}"
+    sql_metrics = f"SELECT DISTINCT metric FROM {settings.influxdb_measurement}"
     
     sources_rows = await influx.query_sql(sql_sources, {}, settings)
     metrics_rows = await influx.query_sql(sql_metrics, {}, settings)
@@ -256,7 +256,7 @@ async def metrics_detail(
             MIN(value)   AS min,
             MAX(value)   AS max,
             COUNT(*)     AS count
-        FROM device_metrics
+        FROM {settings.influxdb_measurement}
         {where_clause}
     """
     summary_rows = await influx.query_sql(sql_summary, params, settings)
@@ -287,7 +287,7 @@ async def metrics_detail(
             MIN(value) AS min,
             MAX(value) AS max,
             COUNT(*)   AS count
-        FROM device_metrics
+        FROM {settings.influxdb_measurement}
         {where_clause}
         GROUP BY 1
         ORDER BY 1
@@ -298,8 +298,8 @@ async def metrics_detail(
     sql_unit = f"""
         SELECT
             DATE_BIN(INTERVAL '{interval}', time, TIMESTAMP '1970-01-01') AS time,
-            selector_last(unit, time)['unit'] AS unit
-        FROM device_metrics
+            selector_last(unit, time)['value'] AS unit
+        FROM {settings.influxdb_measurement}
         {where_clause}
         GROUP BY 1
     """

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { apiGet } from "../api";
 import { SummaryItem, LatestItem, TimeseriesItem } from "../types";
+import TimeRangeSelector from "../components/TimeRangeSelector";
 
 export default function DashboardPage() {
   const getInitialTimeRange = () => {
@@ -53,13 +54,7 @@ export default function DashboardPage() {
       });
   }, [timeRange, retryCount]);
 
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setTimeRange((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+
 
   const handleRetry = () => {
     setRetryCount((prev) => prev + 1);
@@ -118,28 +113,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="filter-bar">
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="start">Start Time</label>
-          <input
-            id="start"
-            type="datetime-local"
-            name="start"
-            value={timeRange.start}
-            onChange={handleTimeChange}
-            className="input-control"
-          />
-        </div>
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="end">End Time</label>
-          <input
-            id="end"
-            type="datetime-local"
-            name="end"
-            value={timeRange.end}
-            onChange={handleTimeChange}
-            className="input-control"
-          />
-        </div>
+        <TimeRangeSelector timeRange={timeRange} onChange={setTimeRange} />
         {error && (
           <button className="btn-action" onClick={handleRetry} style={{ height: "38px" }}>
             Retry Request

@@ -11,6 +11,83 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import TimeRangeSelector from "../components/TimeRangeSelector";
+
+const MultiSelectChecklist = ({
+  options,
+  selected,
+  onChange,
+  label
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (val: string) => void;
+  label: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="multi-select-container" ref={containerRef} style={{ position: 'relative', width: '220px' }}>
+      <div 
+        className="input-control" 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected.length === 0 ? `All ${label}s` : `${selected.length} selected`}
+        </span>
+        <i className={`ri-arrow-${isOpen ? 'up' : 'down'}-s-line`}></i>
+      </div>
+      
+      {isOpen && (
+        <div 
+          style={{ 
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, 
+            background: 'hsl(var(--bg-card))', border: '1px solid rgba(var(--border-glass))', 
+            borderRadius: '4px', marginTop: '4px', maxHeight: '250px', overflowY: 'auto',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+          }}
+        >
+          {options.length === 0 ? (
+            <div style={{ padding: '8px', color: 'hsl(var(--text-muted))' }}>No options</div>
+          ) : (
+            options.map(opt => (
+              <label 
+                key={opt} 
+                style={{ 
+                  display: 'flex', alignItems: 'center', padding: '10px 12px', 
+                  cursor: 'pointer', borderBottom: '1px solid rgba(var(--border-glass))',
+                  margin: 0
+                }}
+              >
+                <input 
+                  type="checkbox" 
+                  checked={selected.includes(opt)}
+                  onChange={() => onChange(opt)}
+                  style={{ marginRight: '10px', width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))' }}>
+                  {opt.replace("_", " ")}
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function ExplorerPage() {
   // Available filter options (loaded on mount from summary API)
@@ -118,23 +195,19 @@ export default function ExplorerPage() {
 
   const { chartData, seriesKeys } = rawRows ? reshapeData(rawRows) : { chartData: [], seriesKeys: [] };
 
-  const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = Array.from(e.target.selectedOptions, (option) => option.value);
-    setSelectedSources(selected);
+  const toggleSource = (src: string) => {
+    setSelectedSources(prev => 
+      prev.includes(src) ? prev.filter(s => s !== src) : [...prev, src]
+    );
   };
 
-  const handleMetricChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = Array.from(e.target.selectedOptions, (option) => option.value);
-    setSelectedMetrics(selected);
+  const toggleMetric = (m: string) => {
+    setSelectedMetrics(prev => 
+      prev.includes(m) ? prev.filter(s => s !== m) : [...prev, m]
+    );
   };
 
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setTimeRange((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+
 
   const handleRetry = () => {
     setRetryCount((prev) => prev + 1);
@@ -155,65 +228,27 @@ export default function ExplorerPage() {
         {/* Source selector */}
         <div className="filter-group">
           <label className="filter-label" htmlFor="source-select">Source Devices</label>
-          <select
-            id="source-select"
-            multiple
-            value={selectedSources}
-            onChange={handleSourceChange}
-            className="input-control select-multi"
-            style={{ width: "180px" }}
-          >
-            {sources.map((src) => (
-              <option key={src} value={src}>
-                {src}
-              </option>
-            ))}
-          </select>
+          <MultiSelectChecklist 
+            options={sources} 
+            selected={selectedSources} 
+            onChange={toggleSource} 
+            label="Source" 
+          />
         </div>
 
         {/* Metric selector */}
         <div className="filter-group">
-          <label className="filter-label" htmlFor="metric-select">Telemetry Metrics</label>
-          <select
-            id="metric-select"
-            multiple
-            value={selectedMetrics}
-            onChange={handleMetricChange}
-            className="input-control select-multi"
-            style={{ width: "180px" }}
-          >
-            {metrics.map((m) => (
-              <option key={m} value={m}>
-                {m.replace("_", " ")}
-              </option>
-            ))}
-          </select>
+          <label className="filter-label">Telemetry Metrics</label>
+          <MultiSelectChecklist 
+            options={metrics} 
+            selected={selectedMetrics} 
+            onChange={toggleMetric} 
+            label="Metric" 
+          />
         </div>
 
         {/* Time filters */}
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="exp-start">Start Time</label>
-          <input
-            id="exp-start"
-            type="datetime-local"
-            name="start"
-            value={timeRange.start}
-            onChange={handleTimeChange}
-            className="input-control"
-          />
-        </div>
-        
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="exp-end">End Time</label>
-          <input
-            id="exp-end"
-            type="datetime-local"
-            name="end"
-            value={timeRange.end}
-            onChange={handleTimeChange}
-            className="input-control"
-          />
-        </div>
+        <TimeRangeSelector timeRange={timeRange} onChange={setTimeRange} />
 
         {/* Bin interval */}
         <div className="filter-group">
