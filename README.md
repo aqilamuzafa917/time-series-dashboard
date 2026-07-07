@@ -209,6 +209,47 @@ ingestion/.venv/bin/python -u ingestion/generate_and_load.py
 ```
 ---
 
+## InfluxDB Data Structure & Schema Design
+
+This project utilizes InfluxDB 3 Core, which uses an underlying Apache Parquet columnar storage engine.
+
+### Database Configuration
+- **Organization :** None (InfluxDB 3 doens't use organization)
+- **Database (Bucket equivalent):** `monitoring`
+- **Retention Settings:** Infinite (Default behavior, data is persisted indefinitely unless explicitly configured during database creation or via data lifecycle rules).
+
+### Schema Definition
+In InfluxDB, the schema is built dynamically (schema-on-write) via the Line Protocol. The primary table is defined as follows:
+- **Measurement Name:** `device_metrics`
+- **Tags (Indexed metadata):** `source_id`, `source_type`, `metric`
+- **Fields (Unindexed data):** `value` (float), `unit` (string)
+- **Timestamp:** Unix timestamp in Nanoseconds (`ns`)
+
+### Tags vs Fields & Cardinality Justification
+- **Tags (`source_id`, `source_type`, `metric`)**: These are defined as tags because they represent categorical metadata used to group, filter, and identify the source of the data. Tags are automatically indexed by InfluxDB, making `WHERE` and `GROUP BY` queries highly performant.
+  - **Cardinality Consideration:** The cardinality (number of unique tag combinations) is a critical factor for database performance. In this schema, cardinality remains extremely low and predictable. With 3 `source_id`s, 2 `source_type`s, and 4 `metric`s, the maximum possible cardinality is 24. This is highly efficient and prevents memory exhaustion issues that plague high-cardinality schemas.
+- **Fields (`value`, `unit`)**: These are defined as fields because they contain the actual measurement payload. `value` is a highly variable continuous float. `unit` is also treated as a field so it remains tightly coupled to the data value without bloating the tag index.
+
+### Sample Data Mapping
+Based on the provided raw metric records:
+| metric | source_id | source_type | time | unit | value |
+|---|---|---|---|---|---|
+| disk_io | sensor-01 | sensor | 2026-07-05T07:49:00 | MB/s | 117.61 |
+| memory_usage | sensor-01 | sensor | 2026-07-05T07:49:00 | percent | 53.47 |
+| temperature | sensor-01 | sensor | 2026-07-05T07:49:00 | celsius | 44.43 |
+| cpu_usage | server-01 | server | 2026-07-05T07:49:00 | percent | 42.87 |
+
+### Sample Line Protocol Records
+When this data is constructed into InfluxDB Line Protocol for ingestion, it looks like this (with the ISO timestamps converted to nanosecond Unix epochs):
+```text
+device_metrics,source_id=sensor-01,source_type=sensor,metric=disk_io value=117.61,unit="MB/s" 1783237740000000000
+device_metrics,source_id=sensor-01,source_type=sensor,metric=memory_usage value=53.47,unit="percent" 1783237740000000000
+device_metrics,source_id=sensor-01,source_type=sensor,metric=temperature value=44.43,unit="celsius" 1783237740000000000
+device_metrics,source_id=server-01,source_type=server,metric=cpu_usage value=42.87,unit="percent" 1783237740000000000
+```
+
+---
+
 ## URLs
 
 * **Frontend Dashboard Interface:** [http://localhost:5173](http://localhost:5173)
