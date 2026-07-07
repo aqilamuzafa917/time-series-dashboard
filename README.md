@@ -285,21 +285,38 @@ In InfluxDB, the schema is built dynamically (schema-on-write) via the Line Prot
 - **Fields (`value`, `unit`)**: These are defined as fields because they contain the actual measurement payload. `value` is a highly variable continuous float. `unit` is also treated as a field so it remains tightly coupled to the data value without bloating the tag index.
 
 ### Sample Data Mapping
-Based on the provided raw metric records:
+Based on the synthetic data generation logic, here is how the records map out (showing all 12 unique series combinations for a single minute):
+
 | metric | source_id | source_type | time | unit | value |
 |---|---|---|---|---|---|
-| disk_io | sensor-01 | sensor | 2026-07-05T07:49:00 | MB/s | 117.61 |
+| cpu_usage | server-01 | server | 2026-07-05T07:49:00 | percent | 42.87 |
+| memory_usage | server-01 | server | 2026-07-05T07:49:00 | percent | 54.18 |
+| temperature | server-01 | server | 2026-07-05T07:49:00 | celsius | 50.64 |
+| disk_io | server-01 | server | 2026-07-05T07:49:00 | MB/s | 117.91 |
+| cpu_usage | server-02 | server | 2026-07-05T07:49:00 | percent | 32.83 |
+| memory_usage | server-02 | server | 2026-07-05T07:49:00 | percent | 57.55 |
+| temperature | server-02 | server | 2026-07-05T07:49:00 | celsius | 40.26 |
+| disk_io | server-02 | server | 2026-07-05T07:49:00 | MB/s | 145.30 |
+| cpu_usage | sensor-01 | sensor | 2026-07-05T07:49:00 | percent | 42.08 |
 | memory_usage | sensor-01 | sensor | 2026-07-05T07:49:00 | percent | 53.47 |
 | temperature | sensor-01 | sensor | 2026-07-05T07:49:00 | celsius | 44.43 |
-| cpu_usage | server-01 | server | 2026-07-05T07:49:00 | percent | 42.87 |
+| disk_io | sensor-01 | sensor | 2026-07-05T07:49:00 | MB/s | 117.61 |
 
 ### Sample Line Protocol Records
 When this data is constructed into InfluxDB Line Protocol for ingestion, it looks like this (with the ISO timestamps converted to nanosecond Unix epochs):
 ```text
-device_metrics,source_id=sensor-01,source_type=sensor,metric=disk_io value=117.61,unit="MB/s" 1783237740000000000
+device_metrics,source_id=server-01,source_type=server,metric=cpu_usage value=42.87,unit="percent" 1783237740000000000
+device_metrics,source_id=server-01,source_type=server,metric=memory_usage value=54.18,unit="percent" 1783237740000000000
+device_metrics,source_id=server-01,source_type=server,metric=temperature value=50.64,unit="celsius" 1783237740000000000
+device_metrics,source_id=server-01,source_type=server,metric=disk_io value=117.91,unit="MB/s" 1783237740000000000
+device_metrics,source_id=server-02,source_type=server,metric=cpu_usage value=32.83,unit="percent" 1783237740000000000
+device_metrics,source_id=server-02,source_type=server,metric=memory_usage value=57.55,unit="percent" 1783237740000000000
+device_metrics,source_id=server-02,source_type=server,metric=temperature value=40.26,unit="celsius" 1783237740000000000
+device_metrics,source_id=server-02,source_type=server,metric=disk_io value=145.30,unit="MB/s" 1783237740000000000
+device_metrics,source_id=sensor-01,source_type=sensor,metric=cpu_usage value=42.08,unit="percent" 1783237740000000000
 device_metrics,source_id=sensor-01,source_type=sensor,metric=memory_usage value=53.47,unit="percent" 1783237740000000000
 device_metrics,source_id=sensor-01,source_type=sensor,metric=temperature value=44.43,unit="celsius" 1783237740000000000
-device_metrics,source_id=server-01,source_type=server,metric=cpu_usage value=42.87,unit="percent" 1783237740000000000
+device_metrics,source_id=sensor-01,source_type=sensor,metric=disk_io value=117.61,unit="MB/s" 1783237740000000000
 ```
 
 ---
