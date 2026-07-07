@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { apiGet } from "../api";
-import { SummaryItem, TimeseriesItem } from "../types";
+import { SummaryItem, TimeseriesItem, ThresholdItem } from "../types";
 import {
   ResponsiveContainer,
   LineChart,
@@ -38,11 +38,11 @@ const MultiSelectChecklist = ({
   }, []);
 
   return (
-    <div className="multi-select-container" ref={containerRef} style={{ position: 'relative', width: '220px' }}>
+    <div className="multi-select-container" ref={containerRef} style={{ position: 'relative', width: '220px', outline: 'none' }}>
       <div 
         className="input-control" 
         onClick={() => setIsOpen(!isOpen)}
-        style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none' }}
+        style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none', outline: 'none' }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selected.length === 0 ? `All ${label}s` : `${selected.length} selected`}
@@ -54,9 +54,9 @@ const MultiSelectChecklist = ({
         <div 
           style={{ 
             position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, 
-            background: 'hsl(var(--bg-card))', border: '1px solid rgba(var(--border-glass))', 
+            background: 'hsl(var(--bg-card))', border: '1px solid hsl(var(--border-glass))', 
             borderRadius: '4px', marginTop: '4px', maxHeight: '250px', overflowY: 'auto',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
+            boxShadow: '0 4px 6px rgba(0,0,0,0.3)', outline: 'none'
           }}
         >
           {options.length === 0 ? (
@@ -67,7 +67,7 @@ const MultiSelectChecklist = ({
                 key={opt} 
                 style={{ 
                   display: 'flex', alignItems: 'center', padding: '10px 12px', 
-                  cursor: 'pointer', borderBottom: '1px solid rgba(var(--border-glass))',
+                  cursor: 'pointer', borderBottom: '1px solid hsl(var(--border-glass))',
                   margin: 0
                 }}
               >
@@ -75,7 +75,7 @@ const MultiSelectChecklist = ({
                   type="checkbox" 
                   checked={selected.includes(opt)}
                   onChange={() => onChange(opt)}
-                  style={{ marginRight: '10px', width: '16px', height: '16px', cursor: 'pointer' }}
+                  style={{ marginRight: '10px', width: '16px', height: '16px', cursor: 'pointer', outline: 'none' }}
                 />
                 <span style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))' }}>
                   {opt.replace("_", " ")}
@@ -120,13 +120,38 @@ export default function ExplorerPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // 1. On Mount: Fetch initial sources and metrics from database
+  // Thresholds
+  const [thresholds, setThresholds] = useState<ThresholdItem[]>([]);
   useEffect(() => {
-    apiGet<{sources: string[], metrics: string[]}>("/api/metrics/list")
+    apiGet<ThresholdItem[]>("/api/thresholds").then(setThresholds).catch(() => {});
+  }, []);
+
+  const thresholdMap = React.useMemo(() => {
+    const m: Record<string, ThresholdItem> = {};
+    thresholds.forEach(t => { m[t.metric] = t; });
+    return m;
+  }, [thresholds]);
+
+  const computeStatus = (value: number, t?: ThresholdItem): "ok" | "warning" | "critical" => {
+    if (!t || !t.active) return "ok";
+    if (t.critical_high !== undefined && value > t.critical_high) return "critical";
+    if (t.warning_high !== undefined && value > t.warning_high) return "warning";
+    return "ok";
+  };
+
+  const getStatColor = (status: "ok" | "warning" | "critical") => {
+    if (status === "critical") return "hsl(var(--color-critical))";
+    if (status === "warning") return "hsl(var(--color-warning))";
+    return "hsl(var(--text-primary))";
+  };
+
+  // 1. On Mount: Fetch initial sources and metrics from database (active sources only)
+  useEffect(() => {
+    apiGet<{sources: string[], metrics: string[]}>("/api/metrics/list", { active_only: "true" })
       .then((data) => {
         setSources(data.sources);
         setMetrics(data.metrics);
-        
+
         // Auto-select first source and metric by default to show initial graph
         if (data.sources.length > 0) setSelectedSources([data.sources[0]]);
         if (data.metrics.length > 0) setSelectedMetrics([data.metrics[0]]);
@@ -211,13 +236,56 @@ export default function ExplorerPage() {
     setRetryCount((prev) => prev + 1);
   };
 
+  const handleExportCSV = () => {
+    if (!rawRows || rawRows.length === 0) return;
+    // Columns match the batch ingest CSV format: timestamp, source_id, source_type, metric, value, unit
+    const headers = ["timestamp", "source_id", "source_type", "metric", "value", "unit"];
+    const csv = [
+      headers.join(","),
+      ...rawRows.map(r =>
+        [
+          new Date(r.time).toISOString(),
+          r.source_id,
+          r.source_type || "unknown",
+          r.metric,
+          r.avg.toFixed(2),
+          r.unit || ""
+        ].join(",")
+      )
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `explorer-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const COLORS = ["#1A8FE3", "#F5A623", "#2FBF9F", "#6FCF97", "#D6249F", "#8884d8", "#FF8042"];
 
   return (
     <div>
-      <div className="page-header">
-        <h2 className="page-title">Metric Explorer</h2>
-        <p className="page-subtitle">Analyze metrics aggregations and zoom trends using dynamic parameters</p>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
+        <div>
+          <h2 className="page-title">Metric Explorer</h2>
+          <p className="page-subtitle">Analyze metrics aggregations and zoom trends using dynamic parameters</p>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button className="btn btn-ghost" onClick={() => window.print()} title="Print PDF">
+            <i className="ri-printer-line"></i> Print PDF
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={handleExportCSV}
+            disabled={!rawRows || rawRows.length === 0}
+            title="Export CSV"
+          >
+            <i className="ri-file-excel-2-line"></i> Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Advanced Query Filter Controls */}
@@ -249,14 +317,14 @@ export default function ExplorerPage() {
 
         {/* Bin interval */}
         <div className="filter-group">
-          <label className="filter-label" htmlFor="interval-select">Aggregate Bin</label>
+          <label className="filter-label" htmlFor="interval-select">Interval</label>
           <select
             id="interval-select"
             value={interval}
             onChange={(e) => setInterval(e.target.value)}
             className="input-control"
-            style={{ height: "38px" }}
           >
+            <option value="1m">1 Minute</option>
             <option value="5m">5 Minutes</option>
             <option value="15m">15 Minutes</option>
             <option value="30m">30 Minutes</option>
@@ -335,6 +403,11 @@ export default function ExplorerPage() {
           <div className="table-container" style={{ marginTop: 0 }}>
             <div className="table-header-box">
               <h3 className="table-title">Timeseries Bucket Rows</h3>
+              {rawRows && rawRows.length > 0 && (
+                <span style={{ color: "hsl(var(--text-muted))", fontSize: "0.85rem" }}>
+                  {rawRows.length} records
+                </span>
+              )}
             </div>
             <div className="table-wrapper">
               {rawRows && rawRows.length > 0 ? (
@@ -356,9 +429,9 @@ export default function ExplorerPage() {
                         <td className="text-muted-col">{new Date(row.time).toLocaleString()}</td>
                         <td>{row.source_id}</td>
                         <td style={{ textTransform: "capitalize" }}>{row.metric.replace("_", " ")}</td>
-                        <td style={{ fontWeight: 600 }}>{row.avg.toFixed(2)}</td>
-                        <td>{row.min.toFixed(2)}</td>
-                        <td>{row.max.toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, color: getStatColor(computeStatus(row.avg, thresholdMap[row.metric])) }}>{row.avg.toFixed(2)}</td>
+                        <td style={{ color: getStatColor(computeStatus(row.min, thresholdMap[row.metric])) }}>{row.min.toFixed(2)}</td>
+                        <td style={{ color: getStatColor(computeStatus(row.max, thresholdMap[row.metric])) }}>{row.max.toFixed(2)}</td>
                         <td className="text-muted-col">{row.count} rows</td>
                       </tr>
                     ))}

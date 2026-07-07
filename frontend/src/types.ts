@@ -15,11 +15,15 @@ export interface SummaryItem {
   max: number;
   count: number;
   status: "ok" | "warning" | "critical";
+  status_avg: "ok" | "warning" | "critical";
+  status_min: "ok" | "warning" | "critical";
+  status_max: "ok" | "warning" | "critical";
 }
 
 export interface TimeseriesItem {
   time: string; // ISO 8601 bucket start
   source_id: string;
+  source_type: string;
   metric: string;
   avg: number;
   min: number;
@@ -75,6 +79,14 @@ export interface IngestResult {
   records_rejected?: number;
   errors?: any[];
   ok?: boolean;
+}
+
+export interface IngestionLogItem {
+  time: string;
+  source_id: string;
+  method: string;
+  records_ingested: number;
+  records_rejected: number | null;
 }
 
 export interface DetailResponse {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiGet } from "../api";
-import { DetailResponse, TimeseriesItem } from "../types";
+import { DetailResponse, TimeseriesItem, ThresholdItem } from "../types";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -10,8 +10,9 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceLine,
 } from "recharts";
-import TimeRangeSelector from "../components/TimeRangeSelector";
+
 
 export default function DetailPage() {
   const { source_id, metric } = useParams<{ source_id: string; metric: string }>();
@@ -20,6 +21,31 @@ export default function DetailPage() {
   const [data, setData] = useState<DetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Thresholds
+  const [thresholds, setThresholds] = useState<ThresholdItem[]>([]);
+  useEffect(() => {
+    apiGet<ThresholdItem[]>("/api/thresholds").then(setThresholds).catch(() => {});
+  }, []);
+
+  const thresholdMap = React.useMemo(() => {
+    const m: Record<string, ThresholdItem> = {};
+    thresholds.forEach(t => { m[t.metric] = t; });
+    return m;
+  }, [thresholds]);
+
+  const computeStatus = (value: number, t?: ThresholdItem): "ok" | "warning" | "critical" => {
+    if (!t || !t.active) return "ok";
+    if (t.critical_high !== undefined && value > t.critical_high) return "critical";
+    if (t.warning_high !== undefined && value > t.warning_high) return "warning";
+    return "ok";
+  };
+
+  const getStatColor = (status: "ok" | "warning" | "critical") => {
+    if (status === "critical") return "hsl(var(--color-critical))";
+    if (status === "warning") return "hsl(var(--color-warning))";
+    return "hsl(var(--text-primary))";
+  };
 
   // Time controls
   const [preset, setPreset] = useState<"1h" | "6h" | "24h" | "7d" | "custom">("24h");
@@ -69,8 +95,14 @@ export default function DetailPage() {
     setLoading(true);
     setError(null);
 
-    const startISO = new Date(timeRange.start).toISOString();
-    const endISO = new Date(timeRange.end).toISOString();
+    const startD = new Date(timeRange.start);
+    const endD = new Date(timeRange.end);
+    if (isNaN(startD.getTime()) || isNaN(endD.getTime())) {
+      setLoading(false);
+      return;
+    }
+    const startISO = startD.toISOString();
+    const endISO = endD.toISOString();
 
     apiGet<DetailResponse>("/api/metrics/detail", {
       source_id,
@@ -100,8 +132,7 @@ export default function DetailPage() {
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "2rem" }}>
         <button 
-          className="btn" 
-          style={{ background: "transparent", border: "1px solid hsl(var(--border-glass))", padding: "0.5rem" }}
+          className="btn btn-ghost"
           onClick={() => navigate(-1)}
         >
           <i className="ri-arrow-left-line"></i> Back
@@ -122,20 +153,18 @@ export default function DetailPage() {
       <div className="controls-card">
         <div className="filter-group">
           <label className="filter-label">Quick Ranges</label>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
             {["1h", "6h", "24h", "7d"].map(p => (
               <button 
                 key={p} 
-                className={`btn ${preset === p ? 'btn-primary' : ''}`}
-                style={preset !== p ? { background: "transparent", border: "1px solid hsl(var(--border-glass))", color: "hsl(var(--text-primary))" } : {}}
+                className={`btn btn-preset ${preset === p ? 'active' : ''}`}
                 onClick={() => applyPreset(p as any)}
               >
                 {p}
               </button>
             ))}
             <button 
-                className={`btn ${preset === "custom" ? 'btn-primary' : ''}`}
-                style={preset !== "custom" ? { background: "transparent", border: "1px solid hsl(var(--border-glass))", color: "hsl(var(--text-primary))" } : {}}
+                className={`btn btn-preset ${preset === "custom" ? 'active' : ''}`}
                 onClick={() => setPreset("custom")}
               >
                 Custom
@@ -144,13 +173,26 @@ export default function DetailPage() {
         </div>
 
         {preset === "custom" && (
-          <div className="filter-group">
-            <TimeRangeSelector 
-              start={timeRange.start}
-              end={timeRange.end}
-              onChange={(start, end) => setTimeRange({ start, end })}
-            />
-          </div>
+          <>
+            <div className="filter-group">
+              <label className="filter-label">Start Time</label>
+              <input
+                type="datetime-local"
+                className="input-control"
+                value={timeRange.start}
+                onChange={(e) => setTimeRange(prev => ({ ...prev, start: e.target.value }))}
+              />
+            </div>
+            <div className="filter-group">
+              <label className="filter-label">End Time</label>
+              <input
+                type="datetime-local"
+                className="input-control"
+                value={timeRange.end}
+                onChange={(e) => setTimeRange(prev => ({ ...prev, end: e.target.value }))}
+              />
+            </div>
+          </>
         )}
 
         <div className="filter-group">
@@ -158,7 +200,7 @@ export default function DetailPage() {
           <select
             className="input-control"
             value={interval}
-            onChange={(e) => { setInterval(e.target.value); setPreset("custom"); }}
+            onChange={(e) => setInterval(e.target.value)}
           >
             <option value="1m">1 Minute</option>
             <option value="5m">5 Minutes</option>
@@ -180,7 +222,7 @@ export default function DetailPage() {
             {data?.summary && (
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "0.9rem", color: "hsl(var(--text-muted))", marginBottom: "0.25rem" }}>Current Value</div>
-                <div style={{ fontSize: "2rem", fontWeight: "bold", lineHeight: 1, color: "hsl(var(--text-primary))" }}>
+                <div style={{ fontSize: "2rem", fontWeight: "bold", lineHeight: 1, color: getStatColor(computeStatus(data.summary.current, thresholdMap[metric!])) }}>
                   {data.summary.current.toFixed(2)} <span style={{ fontSize: "1rem", color: "hsl(var(--text-muted))" }}>{data.timeseries[0]?.unit || ""}</span>
                 </div>
               </div>
@@ -215,6 +257,24 @@ export default function DetailPage() {
                     fill="url(#colorValue)" 
                     name={metric?.replace("_", " ") || "Value"}
                   />
+                  {metric && thresholdMap[metric]?.active && thresholdMap[metric]?.warning_high != null && (
+                    <ReferenceLine
+                      y={thresholdMap[metric].warning_high}
+                      label={{ value: `Warning (${thresholdMap[metric].warning_high})`, position: "insideTopRight", fill: "#F5A623", fontSize: 11 }}
+                      stroke="#F5A623"
+                      strokeDasharray="5 3"
+                      strokeWidth={1.5}
+                    />
+                  )}
+                  {metric && thresholdMap[metric]?.active && thresholdMap[metric]?.critical_high != null && (
+                    <ReferenceLine
+                      y={thresholdMap[metric].critical_high}
+                      label={{ value: `Critical (${thresholdMap[metric].critical_high})`, position: "insideTopRight", fill: "#E05C5C", fontSize: 11 }}
+                      stroke="#E05C5C"
+                      strokeDasharray="5 3"
+                      strokeWidth={1.5}
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -231,15 +291,15 @@ export default function DetailPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
             <div className="card">
               <div className="stat-label">Minimum Value</div>
-              <div className="stat-val" style={{ fontSize: "1.5rem" }}>{data.summary.min?.toFixed(2) || "N/A"}</div>
+              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(computeStatus(data.summary.min ?? 0, thresholdMap[metric!])) }}>{data.summary.min?.toFixed(2) || "N/A"}</div>
             </div>
             <div className="card">
               <div className="stat-label">Average Value</div>
-              <div className="stat-val" style={{ fontSize: "1.5rem" }}>{data.summary.avg?.toFixed(2) || "N/A"}</div>
+              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(computeStatus(data.summary.avg ?? 0, thresholdMap[metric!])) }}>{data.summary.avg?.toFixed(2) || "N/A"}</div>
             </div>
             <div className="card">
               <div className="stat-label">Maximum Value</div>
-              <div className="stat-val" style={{ fontSize: "1.5rem" }}>{data.summary.max?.toFixed(2) || "N/A"}</div>
+              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(computeStatus(data.summary.max ?? 0, thresholdMap[metric!])) }}>{data.summary.max?.toFixed(2) || "N/A"}</div>
             </div>
             <div className="card">
               <div className="stat-label">Data Points Count</div>
