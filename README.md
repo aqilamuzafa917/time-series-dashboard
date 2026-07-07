@@ -151,7 +151,11 @@ To run this project locally, ensure you have the following installed:
 
 Follow these steps to set up and run the entire stack from a clean clone:
 
-### 1. Configure Environment Variables
+### 1. Install InfluxDB 3 Core
+Ensure you have InfluxDB 3 Core installed and running. You can follow the official installation instructions here:
+[https://docs.influxdata.com/influxdb3/core/install/](https://docs.influxdata.com/influxdb3/core/install/)
+
+### 2. Configure Environment Variables
 Copy the template `.env.example` file to `.env`:
 ```bash
 cp .env.example .env
@@ -163,25 +167,18 @@ Open `.env` and configure the database details. For local development with Docke
 * `VITE_API_BASE_URL=http://localhost:8000`
 
 ### 2. Start the Infrastructure Services
-Start the backend API and InfluxDB database containers:
-```bash
-docker compose up backend --build -d
-```
-*Note: If you want to run the full stack including the frontend via Docker, you can run:*
+Start the backend API and frontend containers:
 ```bash
 docker compose up -d --build
 ```
 
 ### 3. Generate InfluxDB Admin Token
-If this is the first time you are starting InfluxDB, generate an administrator token inside the database container:
-```bash
-docker exec -it time-series-dashboard-influxdb-1 influxdb3 create token --admin
-```
+If this is the first time you are starting InfluxDB, generate an administrator token inside the 
 *(If you are connecting to an existing pre-running InfluxDB container named `influxdb3-core`, use: `docker exec -it influxdb3-core influxdb3 create token --admin`)*
 
 Copy the generated token string, paste it as the value for `INFLUXDB_TOKEN` in your `.env` file, and restart the backend container to apply the credentials:
 ```bash
-docker compose restart backend
+docker compose up -d --build
 ```
 
 ---
@@ -217,3 +214,4 @@ ingestion/.venv/bin/python -u ingestion/generate_and_load.py
 * **Frontend Dashboard Interface:** [http://localhost:5173](http://localhost:5173)
 * **Backend API Documentation (Swagger UI):** [http://localhost:8000/docs](http://localhost:8000/docs)
 * **Backend Health Check Endpoint:** [http://localhost:8000/api/health](http://localhost:8000/api/health)
+* **Influxdata built-in UI** [http://localhost:8889/databases](http://localhost:8889/databases)
