@@ -51,7 +51,7 @@ docker compose up backend --build -d
 ```
 *Note: If you want to run the full stack including the frontend via Docker, you can run:*
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
 ### 3. Generate InfluxDB Admin Token
@@ -80,7 +80,10 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
-
+or
+```
+ingestion/.venv/bin/python -u ingestion/generate_and_load.py
+```
 ### 2. Run Data Seeding
 Run the python generator to insert 48 hours of time-series records:
 ```bash
