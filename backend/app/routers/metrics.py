@@ -16,6 +16,8 @@ VALID_INTERVALS = {"1m", "5m", "15m", "30m", "1h", "6h", "12h", "1d"}
 
 def compute_status(value: float, thresholds: dict) -> str:
     """Compute status by checking critical bounds before warning bounds."""
+    if not thresholds.get("active", True):
+        return "ok"
     if thresholds.get("critical_high") is not None and value > thresholds["critical_high"]:
         return "critical"
     if thresholds.get("critical_low") is not None and value < thresholds["critical_low"]:
@@ -72,6 +74,7 @@ async def metrics_summary(
             source_id,
             metric,
             selector_last(value, time)['value'] AS current,
+            selector_last(unit, time)['value'] AS unit,
             AVG(value)   AS avg,
             MIN(value)   AS min,
             MAX(value)   AS max,
@@ -97,6 +100,7 @@ async def metrics_summary(
             "source_id": row.get("source_id"),
             "metric": metric_name,
             "current": current,
+            "unit": row.get("unit") or "",
             "avg": avg_val,
             "min": min_val,
             "max": max_val,
@@ -297,6 +301,7 @@ async def metrics_detail(
     sql_summary = f"""
         SELECT
             selector_last(value, time)['value'] AS current,
+            selector_last(unit, time)['value'] AS unit,
             AVG(value)   AS avg,
             MIN(value)   AS min,
             MAX(value)   AS max,
@@ -317,6 +322,7 @@ async def metrics_detail(
             "source_id": source_id,
             "metric": metric,
             "current": current,
+            "unit": r.get("unit") or "",
             "avg": r.get("avg"),
             "min": r.get("min"),
             "max": r.get("max"),

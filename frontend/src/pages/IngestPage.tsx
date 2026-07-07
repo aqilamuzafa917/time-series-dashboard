@@ -9,7 +9,7 @@ export default function IngestPage() {
   // Manual Ingest State
   const [manualSourceId, setManualSourceId] = useState("");
   const [manualTimestamp, setManualTimestamp] = useState("");
-  const [manualMetrics, setManualMetrics] = useState([{ metric: "", value: "", unit: "" }, { metric: "", value: "", unit: "" }]);
+  const [manualMetrics, setManualMetrics] = useState([{ metric: "", value: "", unit: "" }]);
   const [manualResult, setManualResult] = useState<IngestResult | null>(null);
   const [manualError, setManualError] = useState("");
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
@@ -47,8 +47,8 @@ export default function IngestPage() {
     setManualResult(null);
 
     const validMetrics = manualMetrics.filter(m => m.metric.trim() !== "" && m.value !== "");
-    if (validMetrics.length < 2) {
-      setManualError("At least 2 metric values are required per submission.");
+    if (validMetrics.length < 1) {
+      setManualError("At least 1 metric value is required per submission.");
       return;
     }
 
@@ -68,7 +68,7 @@ export default function IngestPage() {
 
       const result = await apiPost<IngestResult>("/api/ingest/manual", payload);
       setManualResult(result);
-      setManualMetrics([{ metric: "", value: "", unit: "" }, { metric: "", value: "", unit: "" }]);
+      setManualMetrics([{ metric: "", value: "", unit: "" }]);
       setManualTimestamp("");
     } catch (err: any) {
       setManualError(err.message || "Failed to ingest data");
@@ -249,13 +249,13 @@ export default function IngestPage() {
             </div>
 
             <div style={{ marginBottom: "1.5rem" }}>
-              <label className="filter-label">Metrics (Min 2 required)</label>
+              <label className="filter-label">Metrics (Min 1 required)</label>
               {manualMetrics.map((m, idx) => (
                 <div key={idx} className="metric-row">
                   <input type="text" className="input-control metric-name" placeholder="Metric Name (e.g. cpu_usage)" value={m.metric} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].metric = e.target.value; setManualMetrics(newM); }} />
                   <input type="number" step="any" className="input-control metric-value" placeholder="Value" value={m.value} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].value = e.target.value; setManualMetrics(newM); }} />
                   <input type="text" className="input-control metric-unit" placeholder="Unit" value={m.unit} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].unit = e.target.value; setManualMetrics(newM); }} />
-                  <button type="button" className="btn btn-icon btn-danger" onClick={() => removeMetricRow(idx)} disabled={manualMetrics.length <= 2}>
+                  <button type="button" className="btn btn-icon btn-danger" onClick={() => removeMetricRow(idx)} disabled={manualMetrics.length <= 1}>
                     <i className="ri-delete-bin-line"></i>
                   </button>
                 </div>

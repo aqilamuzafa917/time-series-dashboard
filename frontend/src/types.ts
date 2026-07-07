@@ -14,6 +14,7 @@ export interface SummaryItem {
   min: number;
   max: number;
   count: number;
+  unit: string;
   status: "ok" | "warning" | "critical";
   status_avg: "ok" | "warning" | "critical";
   status_min: "ok" | "warning" | "critical";

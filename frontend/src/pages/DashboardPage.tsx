@@ -96,17 +96,6 @@ export default function DashboardPage() {
     return label.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
-  // Build a lookup: "source_id|metric" -> unit string from latestData
-  const unitLookup = React.useMemo(() => {
-    const map: Record<string, string> = {};
-    if (latestData) {
-      latestData.forEach((item) => {
-        map[`${item.source_id}|${item.metric}`] = item.unit;
-      });
-    }
-    return map;
-  }, [latestData]);
-
   // Convert raw unit strings from the DB to display symbols
   const unitToSymbol = (unit: string): string => {
     const u = unit.trim().toLowerCase();
@@ -210,7 +199,7 @@ export default function DashboardPage() {
                   <div className="card-value-display">
                     <span className="card-current-value">{item.current.toFixed(1)}</span>
                     <span className="card-unit">
-                      {unitToSymbol(unitLookup[`${item.source_id}|${item.metric}`] ?? "")}
+                      {unitToSymbol(item.unit || "")}
                     </span>
                   </div>
 

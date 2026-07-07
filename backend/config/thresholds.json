@@ -28,5 +28,17 @@
     "warning_high": 8.0,
     "critical_high": 9.0,
     "active": true
+  },
+  {
+    "metric": "fan power",
+    "warning_high": 3.0,
+    "critical_high": 5.0,
+    "active": false
+  },
+  {
+    "metric": "fan_power",
+    "warning_high": 3.0,
+    "critical_high": 4.0,
+    "active": true
   }
 ]

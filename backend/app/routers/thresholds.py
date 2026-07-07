@@ -14,6 +14,7 @@ class ThresholdCreate(BaseModel):
     active: Optional[bool] = True
 
 class ThresholdUpdate(BaseModel):
+    metric: Optional[str] = None
     warning_high: Optional[float] = None
     critical_high: Optional[float] = None
     active: Optional[bool] = None
@@ -57,16 +58,23 @@ async def update_threshold(metric: str, update: ThresholdUpdate, request: Reques
     target = next((t for t in thresholds if t["metric"] == metric), None)
     if not target:
         raise HTTPException(status_code=404, detail="Metric not found in thresholds")
-        
-    new_warn = update.warning_high if update.warning_high is not None else target.get("warning_high", 0)
-    new_crit = update.critical_high if update.critical_high is not None else target.get("critical_high", 0)
     
-    if new_warn >= new_crit:
-        raise HTTPException(
-            status_code=422, 
-            detail="warning_high must be strictly less than critical_high"
-        )
-        
+    # Only validate warning/critical relationship when at least one is being changed
+    is_changing_values = update.warning_high is not None or update.critical_high is not None
+    if is_changing_values:
+        new_warn = update.warning_high if update.warning_high is not None else target.get("warning_high", 0)
+        new_crit = update.critical_high if update.critical_high is not None else target.get("critical_high", 0)
+        if new_warn >= new_crit:
+            raise HTTPException(
+                status_code=422,
+                detail="warning_high must be strictly less than critical_high"
+            )
+
+    if update.metric is not None:
+        # Check for duplicate metric name
+        if update.metric != metric and any(t["metric"] == update.metric for t in thresholds):
+            raise HTTPException(status_code=409, detail="A threshold for that metric name already exists")
+        target["metric"] = update.metric
     if update.warning_high is not None:
         target["warning_high"] = update.warning_high
     if update.critical_high is not None:

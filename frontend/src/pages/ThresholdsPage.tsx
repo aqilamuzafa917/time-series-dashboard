@@ -58,6 +58,7 @@ export default function ThresholdsPage() {
   const startEdit = (item: ThresholdItem) => {
     setEditingMetric(item.metric);
     setEditForm({
+      metric: item.metric,
       warning_high: item.warning_high,
       critical_high: item.critical_high,
       active: item.active
@@ -65,7 +66,7 @@ export default function ThresholdsPage() {
     setEditError("");
   };
 
-  const saveEdit = async (metric: string) => {
+  const saveEdit = async (originalMetric: string) => {
     setEditError("");
     if (editForm.warning_high !== undefined && editForm.critical_high !== undefined) {
       if (editForm.warning_high >= editForm.critical_high) {
@@ -75,7 +76,7 @@ export default function ThresholdsPage() {
     }
 
     try {
-      await apiPut(`/api/thresholds/${metric}`, editForm);
+      await apiPut(`/api/thresholds/${originalMetric}`, editForm);
       setEditingMetric(null);
       fetchThresholds();
     } catch (err: any) {
@@ -174,7 +175,20 @@ export default function ThresholdsPage() {
                         </button>
                       )}
                     </td>
-                    <td style={{ fontWeight: 600, textTransform: "capitalize" }}>{t.metric.replace("_", " ")}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      {editingMetric === t.metric ? (
+                        <input
+                          type="text"
+                          className="input-control"
+                          style={{ padding: "0.25rem", width: "100%" }}
+                          value={editForm.metric ?? ""}
+                          onChange={(e) => setEditForm({ ...editForm, metric: e.target.value })}
+                          placeholder="metric_name"
+                        />
+                      ) : (
+                        t.metric
+                      )}
+                    </td>
                     <td>
                       {editingMetric === t.metric ? (
                         <input type="number" className="input-control" style={{ padding: "0.25rem", width: "100px" }} value={editForm.warning_high} onChange={(e) => setEditForm({...editForm, warning_high: parseFloat(e.target.value)})} />
