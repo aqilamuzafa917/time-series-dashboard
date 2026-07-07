@@ -47,7 +47,8 @@ graph TD
 
 ## System Data Flow
 
-```flowchart LR
+```mermaid
+flowchart LR
 
 subgraph Frontend["React Frontend"]
     I["Manual / CSV Ingestion"]
