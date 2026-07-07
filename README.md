@@ -14,6 +14,7 @@ A lightweight, high-performance working prototype of an InfluxDB Time-Series Mon
 
 ### Explorer Page
 ![Explorer](docs/screenshots/explorer.png)
+![Explorer2](docs/screenshots/explorer2.png)
 
 ### Detail Page
 ![Detail](docs/screenshots/detail.png)
@@ -46,8 +47,7 @@ graph TD
 
 ## System Data Flow
 
-```mermaid
-flowchart LR
+```flowchart LR
 
 subgraph Frontend["React Frontend"]
     I["Manual / CSV Ingestion"]
@@ -67,13 +67,13 @@ subgraph Producer["External Data Producer"]
     G["Python Data Generator"]
 end
 
-G -- Line Protocol --> TS
+G -- Line Protocol (/api/v3/write_lp) --> TS
 
-I -- HTTP POST --> API
-API -- Line Protocol --> TS
+I -- HTTP POST (/api/ingest/manual) --> API
+API -- Line Protocol (/api/v3/write_lp) --> TS
 
-TS -- SQL / InfluxQL --> API
-API <--> UI
+TS -- SQL / InfluxQL (/api/v3/query_sql)--> API
+API <-- REST API (/api/metrics/*, /api/thresholds)--> UI
 ```
 
 ## Project Structure
