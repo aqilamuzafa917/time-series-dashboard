@@ -4,6 +4,30 @@ A lightweight, high-performance working prototype of an InfluxDB Time-Series Mon
 
 ---
 
+## Screenshots
+
+<details>
+<summary>Click to expand and view screenshots of the dashboard in action</summary>
+
+### Dashboard Page
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Explorer Page
+![Explorer](docs/screenshots/explorer.png)
+
+### Detail Page
+![Detail](docs/screenshots/detail.png)
+
+### Thresholds Page
+![Thresholds](docs/screenshots/thresholds.png)
+
+### Ingestion Page
+![Ingest](docs/screenshots/ingest.png)
+
+</details>
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -20,7 +44,101 @@ graph TD
 
 ---
 
-## Prerequisites
+## System Data Flow
+
+```mermaid
+flowchart LR
+
+subgraph Frontend["React Frontend"]
+    I["Manual / CSV Ingestion"]
+    UI["Dashboard<br/>Explorer<br/>Thresholds"]
+end
+
+
+subgraph Backend["FastAPI Backend"]
+    API["REST API<br/>Validation<br/>Threshold Logic<br/>SQL/Line Protocol Contructor"]
+end
+
+subgraph DB["InfluxDB 3 Core"]
+    TS["device_metrics"]
+end
+
+subgraph Producer["External Data Producer"]
+    G["Python Data Generator"]
+end
+
+G -- Line Protocol --> TS
+
+I -- HTTP POST --> API
+API -- Line Protocol --> TS
+
+TS -- SQL / InfluxQL --> API
+API <--> UI
+```
+
+This section explains the end-to-end relationship between each component in the stack — how data is produced, stored, queried, and finally visualized.
+
+### 1. Data Producer (Ingestion)
+
+Data enters the system from two sources:
+
+- **Synthetic Data Generator** (`ingestion/generate_and_load.py`): A standalone Python script that runs on the host machine outside of Docker. It generates 48 hours of realistic time-series data for 3 device sources (`server-01`, `server-02`, `sensor-01`) across 4 metrics (`cpu_usage`, `memory_usage`, `temperature`, `disk_io`). Values are sampled from a Gaussian distribution around a baseline, with intentional spikes injected at hours 12, 24, and 36 to test threshold alerting.
+
+- **Manual / Batch Ingest via UI**: The frontend's Ingest page allows operators to submit metric readings directly through form input (manual) or by uploading a compatible CSV file (batch). These requests go through the FastAPI backend, not directly to InfluxDB.
+
+Both producers write data using **InfluxDB Line Protocol** — a compact text format that defines the schema implicitly through its structure (no `CREATE TABLE` required):
+
+```
+device_metrics,source_id=server-01,source_type=server,metric=cpu_usage value=85.42,unit="percent" 1720000000000000000
+│              │                                        │                          │
+│              └── Tags (indexed, used in WHERE/GROUP BY)
+│                                                       └── Fields (actual data values)
+│                                                                                  └── Timestamp (nanoseconds)
+└── Measurement (table name)
+```
+
+### 2. Ingestion Process (Write Path)
+
+- The **generator script** writes directly to InfluxDB via `POST /api/v3/write_lp`, bypassing the FastAPI backend for speed. It sends data in batches of 500 rows per HTTP request.
+- The **UI ingest (manual/batch)** sends data to `POST /api/ingest/manual` or `/api/ingest/batch` on the FastAPI backend. The backend validates the payload, formats it as Line Protocol, and proxies the write to InfluxDB. It also writes a log entry to the separate `ingestion_log` table for operational tracking.
+
+### 3. InfluxDB 3 Core (Storage)
+
+InfluxDB 3 Core acts as the sole time-series database. It stores all records in columnar **Apache Parquet** files on disk and exposes two distinct query APIs:
+
+- **`POST /api/v3/query_sql`**: Executes full **SQL** queries using the embedded Apache DataFusion engine. Used for all metric queries (summaries, timeseries, detail, aggregations). Supports parameterized queries to prevent injection.
+- **`GET /query` (InfluxQL)**: Used for metadata catalog queries like `SHOW TAG VALUES` to retrieve the list of known `source_id` and `metric` values without scanning all Parquet files.
+
+The schema is formed automatically from the Line Protocol tags and fields:
+- **Tags** (`source_id`, `source_type`, `metric`) → Indexed string columns, efficient for `WHERE` and `GROUP BY`.
+- **Fields** (`value` as Float, `unit` as String) → Unindexed data columns, queried by aggregation functions like `AVG`, `MIN`, `MAX`, and `selector_last`.
+
+### 4. FastAPI Backend (Query Gateway)
+
+The FastAPI backend serves as a **secure proxy and computation layer** between the frontend and the database. Its responsibilities:
+
+- **Credentials isolation**: The `INFLUXDB_TOKEN` is never exposed to the browser. All database authentication happens server-side.
+- **Parameterized SQL**: All user-controlled filter values (source IDs, metrics, time ranges) are passed as `$param` variables to the InfluxDB query engine, not interpolated as raw strings.
+- **Status computation**: After fetching raw metric values from InfluxDB, the backend's `compute_status()` function compares each value against the configured threshold rules (stored in `config/thresholds.json` in memory) and appends a `status` field (`"ok"`, `"warning"`, or `"critical"`) to every row before sending the response.
+- **Configuration state**: Threshold rules and source metadata are loaded from local JSON files at startup into `app.state`, making lookups in-memory fast without additional DB round-trips.
+
+### 5. Frontend Dashboard (Read Path)
+
+The React SPA (Single-Page Application) fetches all data from the FastAPI backend using standard HTTP GET/POST requests. It never talks to InfluxDB directly.
+
+| Page | API Endpoints Used | What It Shows |
+|---|---|---|
+| **Dashboard** | `/api/metrics/summary`, `/api/metrics/timeseries`, `/api/metrics/latest` | Metric cards with current value, unit, color-coded status, and a trend chart |
+| **Explorer** | `/api/metrics/timeseries`, `/api/thresholds`, `/api/metrics/list` | Filterable data table with threshold color coding and CSV export |
+| **Detail** | `/api/metrics/detail`, `/api/thresholds` | Per-metric chart with reference lines at warning/critical levels |
+| **Thresholds** | `/api/thresholds` (GET/POST/PUT) | CRUD management for threshold rules |
+| **Ingest** | `/api/ingest/manual`, `/api/ingest/batch` | Manual and CSV-based data ingestion forms |
+
+Color coding logic is applied client-side on the Explorer and Detail pages using threshold values fetched from `/api/thresholds`. On the Dashboard page, color coding is determined by the `status` field computed on the backend. In both cases, a threshold with `active: false` will always produce `"ok"` status — no color highlighting.
+
+---
+
+
 
 To run this project locally, ensure you have the following installed:
 * **Docker & Docker Compose** (for running the backend and database services)
