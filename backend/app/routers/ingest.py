@@ -24,8 +24,8 @@ class ManualIngest(BaseModel):
 
 @router.post("/ingest/manual")
 async def ingest_manual(payload: ManualIngest, settings: Settings = Depends(get_settings)):
-    if len(payload.metrics) < 2:
-        raise HTTPException(status_code=422, detail="At least two metric entries are required")
+    if len(payload.metrics) < 1:
+        raise HTTPException(status_code=422, detail="At least one metric entry is required")
         
     ts = payload.timestamp or datetime.now(timezone.utc).isoformat()
     
