@@ -3,7 +3,7 @@ import React, { useState } from "react";
 const TIME_PRESETS = [
   { label: "Past 1 minute", value: "1m", ms: 1 * 60 * 1000 },
   { label: "Past 5 minutes", value: "5m", ms: 5 * 60 * 1000 },
-  { label: "Past 15 minutes", value: "15m", ms: 15 * 60 * 1000 },
+  { label: "Past 30 minutes", value: "30m", ms: 30 * 60 * 1000 },
   { label: "Past 1 hour", value: "1h", ms: 60 * 60 * 1000 },
   { label: "Past 3 hours", value: "3h", ms: 3 * 60 * 60 * 1000 },
   { label: "Past 6 hours", value: "6h", ms: 6 * 60 * 60 * 1000 },
@@ -31,7 +31,7 @@ export default function TimeRangeSelector({ timeRange, onChange }: TimeRangeSele
   const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setPreset(val);
-    
+
     if (val !== "custom") {
       const presetObj = TIME_PRESETS.find(p => p.value === val);
       if (presetObj) {
@@ -83,7 +83,7 @@ export default function TimeRangeSelector({ timeRange, onChange }: TimeRangeSele
               className="input-control"
             />
           </div>
-          
+
           <div className="filter-group">
             <label className="filter-label" htmlFor="custom-end">End Time</label>
             <input
