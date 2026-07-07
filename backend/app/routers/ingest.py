@@ -18,6 +18,7 @@ class MetricEntry(BaseModel):
 
 class ManualIngest(BaseModel):
     source_id: str
+    source_type: Optional[str] = "unknown"
     timestamp: Optional[str] = None
     metrics: List[MetricEntry]
 
@@ -37,7 +38,7 @@ async def ingest_manual(payload: ManualIngest, settings: Settings = Depends(get_
             dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
             ns = int(dt.timestamp() * 1e9)
             
-            line = f'{settings.influxdb_measurement},source_id={payload.source_id},source_type=unknown,metric={m.metric},unit={m.unit} value={m.value} {ns}'
+            line = f'{settings.influxdb_measurement},source_id={payload.source_id},source_type={payload.source_type},metric={m.metric} value={m.value},unit="{m.unit}" {ns}'
             lp_lines.append(line)
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid timestamp format")
@@ -56,7 +57,7 @@ async def ingest_manual(payload: ManualIngest, settings: Settings = Depends(get_
 @router.post("/ingest/batch")
 async def ingest_batch(file: UploadFile = File(...), settings: Settings = Depends(get_settings)):
     content = await file.read()
-    text = content.decode("utf-8")
+    text = content.decode("utf-8-sig")
     
     reader = csv.DictReader(io.StringIO(text))
     
@@ -67,21 +68,25 @@ async def ingest_batch(file: UploadFile = File(...), settings: Settings = Depend
     for row in reader:
         row_num += 1
         try:
-            ts_str = row.get("timestamp")
-            sid = row.get("source_id")
-            metric = row.get("metric")
-            val_str = row.get("value")
-            unit = row.get("unit")
+            # Normalize keys: strip whitespace and lowercase
+            normalized_row = {k.strip().lower(): v for k, v in row.items() if k is not None}
+            
+            ts_str = normalized_row.get("timestamp")
+            sid = normalized_row.get("source_id")
+            metric = normalized_row.get("metric")
+            val_str = normalized_row.get("value")
+            unit = normalized_row.get("unit")
+            source_type = normalized_row.get("source_type") or "unknown"
             
             if not ts_str or not sid or not metric or not val_str or not unit:
-                errors.append({"row": row_num, "reason": "Missing required column"})
+                errors.append({"row": row_num, "reason": "Missing required column (expected: timestamp, source_id, metric, value, unit)"})
                 continue
                 
             val = float(val_str)
             dt = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
             ns = int(dt.timestamp() * 1e9)
             
-            line = f'{settings.influxdb_measurement},source_id={sid},source_type=unknown,metric={metric},unit={unit} value={val} {ns}'
+            line = f'{settings.influxdb_measurement},source_id={sid},source_type={source_type},metric={metric} value={val},unit="{unit}" {ns}'
             valid_lines.append(line)
             
         except Exception as e:

@@ -1,8 +1,22 @@
 [
   {
-    "source_id": "string",
-    "display_name": "string",
-    "source_type": "string",
+    "source_id": "sensor-01",
+    "display_name": "sensor pertama",
+    "source_type": "",
+    "description": "",
+    "active": true
+  },
+  {
+    "source_id": "server-01",
+    "display_name": "server-01",
+    "source_type": "",
+    "description": "",
+    "active": true
+  },
+  {
+    "source_id": "server-02",
+    "display_name": "server-02",
+    "source_type": "",
     "description": "",
     "active": true
   }

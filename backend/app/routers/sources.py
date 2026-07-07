@@ -28,36 +28,90 @@ def _get_sources_file() -> Path:
 
 @router.get("/sources")
 async def get_sources(request: Request, settings: Settings = Depends(get_settings)):
-    sql = """
-        SELECT source_id, source_type, MAX(time) AS latest_at, COUNT(*) AS record_count 
-        FROM device_metrics 
-        GROUP BY source_id, source_type
-    """
-    rows = await influx.query_sql(sql, {}, settings)
+    # Use InfluxQL SHOW TAG VALUES to get all sources without hitting parquet file limits
+    try:
+        sql = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "source_id"'
+        res = await influx.query_influxql(sql, settings)
+        
+        db_source_ids: list[str] = []
+        results = res.get("results", [])
+        if results:
+            series = results[0].get("series", [])
+            if series:
+                for v in series[0].get("values", []):
+                    if len(v) > 1:
+                        db_source_ids.append(v[1])
+    except Exception:
+        db_source_ids = []
     
-    # Merge with overrides
+    # Get latest_at, record_count, and source_type per source via SQL.
+    # source_type is stored as a tag in InfluxDB — query it directly.
+    stats_map: dict = {}
+    try:
+        stats_sql = f"""
+            SELECT source_id, source_type, MAX(time) AS latest_at, COUNT(*) AS record_count
+            FROM {settings.influxdb_measurement}
+            WHERE time >= now() - INTERVAL '30 days'
+            GROUP BY source_id, source_type
+        """
+        stats_rows = await influx.query_sql(stats_sql, {}, settings)
+        for row in stats_rows:
+            sid = row.get("source_id")
+            if sid:
+                # Keep the most recent entry per source_id (in case of multiple source_type tags)
+                existing = stats_map.get(sid)
+                row_latest = row.get("latest_at")
+                if not existing or (row_latest and row_latest > existing.get("latest_at", "")):
+                    stats_map[sid] = {
+                        "latest_at": row_latest,
+                        "record_count": row.get("record_count", 0),
+                        "source_type": row.get("source_type") or "unknown",
+                    }
+    except Exception:
+        pass
+    
+    # Merge with overrides from sources.json
     overrides = request.app.state.sources
     override_map = {o["source_id"]: o for o in overrides}
     
     result = []
-    # Include all distinct sources from DB
-    for row in rows:
-        sid = row.get("source_id")
+    seen = set()
+    # Include all sources from DB
+    for sid in db_source_ids:
+        seen.add(sid)
         ov = override_map.get(sid, {})
+        stats = stats_map.get(sid, {})
+        db_source_type = stats.get("source_type", "unknown")
+
+        # Auto-register new DB sources into overrides, using the DB source_type
+        if sid not in override_map:
+            new_ov = {
+                "source_id": sid,
+                "display_name": sid,
+                "source_type": db_source_type,
+                "description": "",
+                "active": True
+            }
+            overrides.append(new_ov)
+            override_map[sid] = new_ov
+
+        # Prefer the user-set override if it's meaningful; fall back to what InfluxDB reports
+        override_type = ov.get("source_type", "")
+        effective_type = override_type if (override_type and override_type != "unknown") else db_source_type
+
         result.append({
             "source_id": sid,
             "display_name": ov.get("display_name", sid),
-            "source_type": ov.get("source_type", row.get("source_type", "unknown")),
+            "source_type": effective_type,
             "description": ov.get("description", ""),
             "active": ov.get("active", True),
-            "latest_at": row.get("latest_at"),
-            "record_count": row.get("record_count", 0)
+            "latest_at": stats.get("latest_at"),
+            "record_count": stats.get("record_count", 0)
         })
-        
-    # Also include sources from overrides that might not have DB data yet
-    db_sources = {r.get("source_id") for r in rows if r.get("source_id")}
+    
+    # Include override-only sources not in DB
     for sid, ov in override_map.items():
-        if sid not in db_sources:
+        if sid not in seen:
             result.append({
                 "source_id": sid,
                 "display_name": ov.get("display_name", sid),
@@ -67,7 +121,15 @@ async def get_sources(request: Request, settings: Settings = Depends(get_setting
                 "latest_at": None,
                 "record_count": 0
             })
-            
+    
+    # Persist updated sources back to file (auto-sync from InfluxDB)
+    try:
+        with open(_get_sources_file(), "w") as f:
+            json.dump(overrides, f, indent=2)
+        request.app.state.sources = overrides
+    except Exception:
+        pass
+    
     return result
 
 @router.post("/sources", status_code=201)
