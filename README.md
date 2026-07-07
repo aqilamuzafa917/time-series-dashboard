@@ -80,10 +80,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
-or
-```
-ingestion/.venv/bin/python -u ingestion/generate_and_load.py
-```
+
 ### 2. Run Data Seeding
 Run the python generator to insert 48 hours of time-series records:
 ```bash
@@ -91,6 +88,10 @@ python generate_and_load.py
 ```
 This script automatically generates natural Gaussian variations for CPU, Memory, Suhu, and Disk I/O across 3 distinct device sources, introducing intentional threshold-breaching spikes on hours 12, 24, and 36 for system alert testing.
 
+or
+```
+ingestion/.venv/bin/python -u ingestion/generate_and_load.py
+```
 ---
 
 ## URLs
