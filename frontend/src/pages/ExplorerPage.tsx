@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { apiGet } from "../api";
-import { SummaryItem, TimeseriesItem } from "../types";
+import { SummaryItem, TimeseriesItem, ThresholdItem } from "../types";
 import {
   ResponsiveContainer,
   LineChart,
@@ -11,6 +11,83 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import TimeRangeSelector from "../components/TimeRangeSelector";
+
+const MultiSelectChecklist = ({
+  options,
+  selected,
+  onChange,
+  label
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (val: string) => void;
+  label: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="multi-select-container" ref={containerRef} style={{ position: 'relative', width: '220px', outline: 'none' }}>
+      <div 
+        className="input-control" 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none', outline: 'none' }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected.length === 0 ? `All ${label}s` : `${selected.length} selected`}
+        </span>
+        <i className={`ri-arrow-${isOpen ? 'up' : 'down'}-s-line`}></i>
+      </div>
+      
+      {isOpen && (
+        <div 
+          style={{ 
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, 
+            background: 'hsl(var(--bg-card))', border: '1px solid hsl(var(--border-glass))', 
+            borderRadius: '4px', marginTop: '4px', maxHeight: '250px', overflowY: 'auto',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.3)', outline: 'none'
+          }}
+        >
+          {options.length === 0 ? (
+            <div style={{ padding: '8px', color: 'hsl(var(--text-muted))' }}>No options</div>
+          ) : (
+            options.map(opt => (
+              <label 
+                key={opt} 
+                style={{ 
+                  display: 'flex', alignItems: 'center', padding: '10px 12px', 
+                  cursor: 'pointer', borderBottom: '1px solid hsl(var(--border-glass))',
+                  margin: 0
+                }}
+              >
+                <input 
+                  type="checkbox" 
+                  checked={selected.includes(opt)}
+                  onChange={() => onChange(opt)}
+                  style={{ marginRight: '10px', width: '16px', height: '16px', cursor: 'pointer', outline: 'none' }}
+                />
+                <span style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))' }}>
+                  {opt.replace("_", " ")}
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function ExplorerPage() {
   // Available filter options (loaded on mount from summary API)
@@ -43,18 +120,41 @@ export default function ExplorerPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // 1. On Mount: Fetch initial sources and metrics from database
+  // Thresholds
+  const [thresholds, setThresholds] = useState<ThresholdItem[]>([]);
   useEffect(() => {
-    apiGet<SummaryItem[]>("/api/metrics/summary")
+    apiGet<ThresholdItem[]>("/api/thresholds").then(setThresholds).catch(() => {});
+  }, []);
+
+  const thresholdMap = React.useMemo(() => {
+    const m: Record<string, ThresholdItem> = {};
+    thresholds.forEach(t => { m[t.metric] = t; });
+    return m;
+  }, [thresholds]);
+
+  const computeStatus = (value: number, t?: ThresholdItem): "ok" | "warning" | "critical" => {
+    if (!t || !t.active) return "ok";
+    if (t.critical_high !== undefined && value > t.critical_high) return "critical";
+    if (t.warning_high !== undefined && value > t.warning_high) return "warning";
+    return "ok";
+  };
+
+  const getStatColor = (status: "ok" | "warning" | "critical") => {
+    if (status === "critical") return "hsl(var(--color-critical))";
+    if (status === "warning") return "hsl(var(--color-warning))";
+    return "hsl(var(--text-primary))";
+  };
+
+  // 1. On Mount: Fetch initial sources and metrics from database (active sources only)
+  useEffect(() => {
+    apiGet<{sources: string[], metrics: string[]}>("/api/metrics/list", { active_only: "true" })
       .then((data) => {
-        const uniqueSources = Array.from(new Set(data.map((d) => d.source_id)));
-        const uniqueMetrics = Array.from(new Set(data.map((d) => d.metric)));
-        setSources(uniqueSources);
-        setMetrics(uniqueMetrics);
-        
+        setSources(data.sources);
+        setMetrics(data.metrics);
+
         // Auto-select first source and metric by default to show initial graph
-        if (uniqueSources.length > 0) setSelectedSources([uniqueSources[0]]);
-        if (uniqueMetrics.length > 0) setSelectedMetrics([uniqueMetrics[0]]);
+        if (data.sources.length > 0) setSelectedSources([data.sources[0]]);
+        if (data.metrics.length > 0) setSelectedMetrics([data.metrics[0]]);
       })
       .catch((err) => {
         console.error("Failed to load metadata dropdowns:", err);
@@ -118,36 +218,74 @@ export default function ExplorerPage() {
 
   const { chartData, seriesKeys } = rawRows ? reshapeData(rawRows) : { chartData: [], seriesKeys: [] };
 
-  const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = Array.from(e.target.selectedOptions, (option) => option.value);
-    setSelectedSources(selected);
+  const toggleSource = (src: string) => {
+    setSelectedSources(prev => 
+      prev.includes(src) ? prev.filter(s => s !== src) : [...prev, src]
+    );
   };
 
-  const handleMetricChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = Array.from(e.target.selectedOptions, (option) => option.value);
-    setSelectedMetrics(selected);
+  const toggleMetric = (m: string) => {
+    setSelectedMetrics(prev => 
+      prev.includes(m) ? prev.filter(s => s !== m) : [...prev, m]
+    );
   };
 
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setTimeRange((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+
 
   const handleRetry = () => {
     setRetryCount((prev) => prev + 1);
   };
 
-  // Curated list of color hexes to give lines a distinct, vibrant look in dark mode
-  const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#0088fe", "#00c49f", "#ffbb28", "#ff8042"];
+  const handleExportCSV = () => {
+    if (!rawRows || rawRows.length === 0) return;
+    // Columns match the batch ingest CSV format: timestamp, source_id, source_type, metric, value, unit
+    const headers = ["timestamp", "source_id", "source_type", "metric", "value", "unit"];
+    const csv = [
+      headers.join(","),
+      ...rawRows.map(r =>
+        [
+          new Date(r.time).toISOString(),
+          r.source_id,
+          r.source_type || "unknown",
+          r.metric,
+          r.avg.toFixed(2),
+          r.unit || ""
+        ].join(",")
+      )
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `explorer-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const COLORS = ["#1A8FE3", "#F5A623", "#2FBF9F", "#6FCF97", "#D6249F", "#8884d8", "#FF8042"];
 
   return (
     <div>
-      <div className="page-header">
-        <h2 className="page-title">Metric Explorer</h2>
-        <p className="page-subtitle">Analyze metrics aggregations and zoom trends using dynamic parameters</p>
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem" }}>
+        <div>
+          <h2 className="page-title">Metric Explorer</h2>
+          <p className="page-subtitle">Analyze metrics aggregations and zoom trends using dynamic parameters</p>
+        </div>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button className="btn btn-ghost" onClick={() => window.print()} title="Print PDF">
+            <i className="ri-printer-line"></i> Print PDF
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={handleExportCSV}
+            disabled={!rawRows || rawRows.length === 0}
+            title="Export CSV"
+          >
+            <i className="ri-file-excel-2-line"></i> Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Advanced Query Filter Controls */}
@@ -155,76 +293,38 @@ export default function ExplorerPage() {
         {/* Source selector */}
         <div className="filter-group">
           <label className="filter-label" htmlFor="source-select">Source Devices</label>
-          <select
-            id="source-select"
-            multiple
-            value={selectedSources}
-            onChange={handleSourceChange}
-            className="input-control select-multi"
-            style={{ width: "180px" }}
-          >
-            {sources.map((src) => (
-              <option key={src} value={src}>
-                {src}
-              </option>
-            ))}
-          </select>
+          <MultiSelectChecklist 
+            options={sources} 
+            selected={selectedSources} 
+            onChange={toggleSource} 
+            label="Source" 
+          />
         </div>
 
         {/* Metric selector */}
         <div className="filter-group">
-          <label className="filter-label" htmlFor="metric-select">Telemetry Metrics</label>
-          <select
-            id="metric-select"
-            multiple
-            value={selectedMetrics}
-            onChange={handleMetricChange}
-            className="input-control select-multi"
-            style={{ width: "180px" }}
-          >
-            {metrics.map((m) => (
-              <option key={m} value={m}>
-                {m.replace("_", " ")}
-              </option>
-            ))}
-          </select>
+          <label className="filter-label">Telemetry Metrics</label>
+          <MultiSelectChecklist 
+            options={metrics} 
+            selected={selectedMetrics} 
+            onChange={toggleMetric} 
+            label="Metric" 
+          />
         </div>
 
         {/* Time filters */}
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="exp-start">Start Time</label>
-          <input
-            id="exp-start"
-            type="datetime-local"
-            name="start"
-            value={timeRange.start}
-            onChange={handleTimeChange}
-            className="input-control"
-          />
-        </div>
-        
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="exp-end">End Time</label>
-          <input
-            id="exp-end"
-            type="datetime-local"
-            name="end"
-            value={timeRange.end}
-            onChange={handleTimeChange}
-            className="input-control"
-          />
-        </div>
+        <TimeRangeSelector timeRange={timeRange} onChange={setTimeRange} />
 
         {/* Bin interval */}
         <div className="filter-group">
-          <label className="filter-label" htmlFor="interval-select">Aggregate Bin</label>
+          <label className="filter-label" htmlFor="interval-select">Interval</label>
           <select
             id="interval-select"
             value={interval}
             onChange={(e) => setInterval(e.target.value)}
             className="input-control"
-            style={{ height: "38px" }}
           >
+            <option value="1m">1 Minute</option>
             <option value="5m">5 Minutes</option>
             <option value="15m">15 Minutes</option>
             <option value="30m">30 Minutes</option>
@@ -264,7 +364,7 @@ export default function ExplorerPage() {
                   data={chartData}
                   margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2b2d31" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--text-muted))" opacity={0.3} />
                   <XAxis
                     dataKey="displayTime"
                     stroke="hsl(var(--text-secondary))"
@@ -303,6 +403,11 @@ export default function ExplorerPage() {
           <div className="table-container" style={{ marginTop: 0 }}>
             <div className="table-header-box">
               <h3 className="table-title">Timeseries Bucket Rows</h3>
+              {rawRows && rawRows.length > 0 && (
+                <span style={{ color: "hsl(var(--text-muted))", fontSize: "0.85rem" }}>
+                  {rawRows.length} records
+                </span>
+              )}
             </div>
             <div className="table-wrapper">
               {rawRows && rawRows.length > 0 ? (
@@ -324,9 +429,9 @@ export default function ExplorerPage() {
                         <td className="text-muted-col">{new Date(row.time).toLocaleString()}</td>
                         <td>{row.source_id}</td>
                         <td style={{ textTransform: "capitalize" }}>{row.metric.replace("_", " ")}</td>
-                        <td style={{ fontWeight: 600 }}>{row.avg.toFixed(2)}</td>
-                        <td>{row.min.toFixed(2)}</td>
-                        <td>{row.max.toFixed(2)}</td>
+                        <td style={{ fontWeight: 600, color: getStatColor(computeStatus(row.avg, thresholdMap[row.metric])) }}>{row.avg.toFixed(2)}</td>
+                        <td style={{ color: getStatColor(computeStatus(row.min, thresholdMap[row.metric])) }}>{row.min.toFixed(2)}</td>
+                        <td style={{ color: getStatColor(computeStatus(row.max, thresholdMap[row.metric])) }}>{row.max.toFixed(2)}</td>
                         <td className="text-muted-col">{row.count} rows</td>
                       </tr>
                     ))}

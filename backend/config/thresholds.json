@@ -1,6 +1,32 @@
 [
-  { "metric": "cpu_usage",    "warning_high": 80,  "critical_high": 95  },
-  { "metric": "memory_usage", "warning_high": 75,  "critical_high": 90  },
-  { "metric": "temperature",  "warning_high": 70,  "critical_high": 85  },
-  { "metric": "disk_io",      "warning_high": 200, "critical_high": 400 }
+  {
+    "metric": "cpu_usage",
+    "warning_high": 50.0,
+    "critical_high": 95.0,
+    "active": true
+  },
+  {
+    "metric": "memory_usage",
+    "warning_high": 75,
+    "critical_high": 90,
+    "active": true
+  },
+  {
+    "metric": "temperature",
+    "warning_high": 60.0,
+    "critical_high": 80.0,
+    "active": true
+  },
+  {
+    "metric": "disk_io",
+    "warning_high": 200,
+    "critical_high": 400,
+    "active": true
+  },
+  {
+    "metric": "ram_usage",
+    "warning_high": 8.0,
+    "critical_high": 9.0,
+    "active": true
+  }
 ]
