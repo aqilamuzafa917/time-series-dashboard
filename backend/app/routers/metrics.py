@@ -89,16 +89,22 @@ async def metrics_summary(
     for row in rows:
         metric_name = row.get("metric", "")
         current = row.get("current") or 0.0
+        avg_val = row.get("avg") or 0.0
+        min_val = row.get("min") or 0.0
+        max_val = row.get("max") or 0.0
         t = thresholds_map.get(metric_name, {})
         result.append({
             "source_id": row.get("source_id"),
             "metric": metric_name,
             "current": current,
-            "avg": row.get("avg"),
-            "min": row.get("min"),
-            "max": row.get("max"),
+            "avg": avg_val,
+            "min": min_val,
+            "max": max_val,
             "count": row.get("count"),
             "status": compute_status(current, t),
+            "status_avg": compute_status(avg_val, t),
+            "status_min": compute_status(min_val, t),
+            "status_max": compute_status(max_val, t),
         })
 
     return result
@@ -149,6 +155,7 @@ async def metrics_timeseries(
         SELECT
             DATE_BIN(INTERVAL '{interval}', time, TIMESTAMP '1970-01-01') AS time,
             source_id,
+            source_type,
             metric,
             AVG(value) AS avg,
             MIN(value) AS min,
@@ -156,7 +163,7 @@ async def metrics_timeseries(
             COUNT(*)   AS count
         FROM {settings.influxdb_measurement}
         {where_clause}
-        GROUP BY 1, source_id, metric
+        GROUP BY 1, source_id, source_type, metric
         ORDER BY 1
     """
 
@@ -166,18 +173,19 @@ async def metrics_timeseries(
         SELECT
             DATE_BIN(INTERVAL '{interval}', time, TIMESTAMP '1970-01-01') AS time,
             source_id,
+            source_type,
             metric,
             selector_last(unit, time)['value'] AS unit
         FROM {settings.influxdb_measurement}
         {where_clause}
-        GROUP BY 1, source_id, metric
+        GROUP BY 1, source_id, source_type, metric
     """
     unit_rows = await influx.query_sql(unit_sql, params, settings)
-    unit_map = { (r.get("time"), r.get("source_id"), r.get("metric")): r.get("unit") for r in unit_rows }
+    unit_map = { (r.get("time"), r.get("source_id"), r.get("source_type"), r.get("metric")): r.get("unit") for r in unit_rows }
 
     thresholds_map = _thresholds_by_metric(request)
     for row in rows:
-        key = (row.get("time"), row.get("source_id"), row.get("metric"))
+        key = (row.get("time"), row.get("source_id"), row.get("source_type"), row.get("metric"))
         row["unit"] = unit_map.get(key)
         
         avg_val = row.get("avg")
@@ -191,17 +199,28 @@ async def metrics_timeseries(
 
 @router.get("/metrics/latest")
 async def metrics_latest(
+    source_id: list[str] = Query(default=[]),
     limit: int = Query(default=10, ge=1),
     settings: Settings = Depends(get_settings),
 ):
     # Cap at 100 silently
     capped_limit = min(limit, 100)
-    params = {"limit": capped_limit}
+    params: dict = {"limit": capped_limit}
+
+    conditions = ["time >= now() - INTERVAL '6 hours'"]
+
+    if source_id:
+        placeholders = ", ".join(f"$s{i}" for i in range(len(source_id)))
+        conditions.append(f"source_id IN ({placeholders})")
+        for i, sid in enumerate(source_id):
+            params[f"s{i}"] = sid
+
+    where_clause = f"WHERE {' AND '.join(conditions)}"
 
     sql = f"""
         SELECT time, source_id, source_type, metric, value, unit
         FROM {settings.influxdb_measurement}
-        WHERE time >= now() - INTERVAL '6 hours'
+        {where_clause}
         ORDER BY time DESC
         LIMIT $limit
     """
@@ -211,12 +230,42 @@ async def metrics_latest(
 
 
 @router.get("/metrics/list")
-async def metrics_list(request: Request):
-    # Fetch from memory rather than querying the database to prevent file limit scans
-    sources = [s.get("source_id") for s in getattr(request.app.state, "sources", []) if s.get("source_id")]
-    metrics = [t.get("metric") for t in getattr(request.app.state, "thresholds", []) if t.get("metric")]
-    
-    return {"sources": list(set(sources)), "metrics": list(set(metrics))}
+async def metrics_list(
+    request: Request,
+    active_only: bool = Query(default=False),
+    settings: Settings = Depends(get_settings),
+):
+    # Fetch from InfluxDB metadata catalog using InfluxQL to avoid Parquet file scans
+    try:
+        sql_sources = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "source_id"'
+        sources_res = await influx.query_influxql(sql_sources, settings)
+
+        sql_metrics = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "metric"'
+        metrics_res = await influx.query_influxql(sql_metrics, settings)
+
+        def extract_values(res: dict) -> list[str]:
+            results = res.get("results", [])
+            if not results: return []
+            series = results[0].get("series", [])
+            if not series: return []
+            values = series[0].get("values", [])
+            return [v[1] for v in values if len(v) > 1]
+
+        sources = extract_values(sources_res)
+        metrics = extract_values(metrics_res)
+    except Exception as e:
+        print(f"Error fetching metadata: {e}")
+        sources = []
+        metrics = []
+
+    # Filter sources to only active ones when requested
+    if active_only:
+        overrides = getattr(request.app.state, "sources", [])
+        # Build a set of source_ids that are explicitly marked inactive
+        inactive_ids = {o["source_id"] for o in overrides if not o.get("active", True)}
+        sources = [s for s in sources if s not in inactive_ids]
+
+    return {"sources": sources, "metrics": metrics}
 
 
 @router.get("/metrics/detail")
