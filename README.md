@@ -4,7 +4,7 @@ A lightweight, high-performance working prototype of an InfluxDB Time-Series Mon
 
 ---
 
-## Screenshots
+## Screenshots & Slides
 
 <details>
 <summary>Click to expand and view screenshots of the dashboard in action</summary>
@@ -26,6 +26,20 @@ A lightweight, high-performance working prototype of an InfluxDB Time-Series Mon
 ![Ingest](docs/screenshots/ingest.png)
 
 </details>
+
+<details>
+<summary>Click to expand and view slides</summary>
+
+![Slide 1](docs/slides/1.png)
+![Slide 2](docs/slides/2.png)
+![Slide 3](docs/slides/3.png)
+![Slide 4](docs/slides/4.png)
+![Slide 5](docs/slides/5.png)
+![Slide 6](docs/slides/6.png)
+![Slide 7](docs/slides/7.png)
+
+</details>
+
 
 ---
 
