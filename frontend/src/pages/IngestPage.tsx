@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { apiGet, apiPost } from "../api";
+import { apiGet, apiPost, BASE_URL } from "../api";
 import { SourceItem, IngestResult } from "../types";
-
+// MANUAL INGEST
 export default function IngestPage() {
   const [sources, setSources] = useState<SourceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,9 +23,10 @@ export default function IngestPage() {
   useEffect(() => {
     apiGet<SourceItem[]>("/api/sources")
       .then(data => {
-        setSources(data.filter(s => s.active));
-        if (data.length > 0) {
-          setManualSourceId(data[0].source_id);
+        const active = data.filter(s => s.active);
+        setSources(active);
+        if (active.length > 0) {
+          setManualSourceId(active[0].source_id);
         }
       })
       .catch(err => console.error("Failed to load sources", err))
@@ -53,8 +54,10 @@ export default function IngestPage() {
 
     setIsSubmittingManual(true);
     try {
+      const selectedSource = sources.find(s => s.source_id === manualSourceId);
       const payload = {
         source_id: manualSourceId,
+        source_type: selectedSource?.source_type || "unknown",
         timestamp: manualTimestamp ? new Date(manualTimestamp).toISOString() : undefined,
         metrics: validMetrics.map(m => ({
           metric: m.metric.trim(),
@@ -93,14 +96,22 @@ export default function IngestPage() {
       formData.append("file", csvFile);
 
       // We cannot use standard apiPost because it serializes to JSON. We need fetch directly.
-      const res = await fetch("/api/ingest/batch", {
+      const res = await fetch(`${BASE_URL}/api/ingest/batch`, {
         method: "POST",
         body: formData
       });
       
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Batch ingestion failed");
+      if (!res.ok) {
+        let errorMsg = `Batch ingestion failed: ${res.status} ${res.statusText}`;
+        try {
+          const errData = await res.json();
+          if (errData.detail) errorMsg = errData.detail;
+        } catch {}
+        throw new Error(errorMsg);
+      }
       
+      const data = await res.json();
+
       setBatchResult(data);
       setCsvFile(null);
       // Reset input file
@@ -114,18 +125,90 @@ export default function IngestPage() {
   };
 
   return (
-    <div>
+    <div className="ingest-page">
+      <style>{`
+        .ingest-page .ingest-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+          gap: 2rem;
+          align-items: start;
+        }
+        .ingest-page .card {
+          min-width: 0; /* prevents grid children from overflowing their track */
+        }
+        .ingest-page .field-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+        .ingest-page .field-row > div {
+          flex: 1 1 180px;
+          min-width: 0;
+        }
+        .ingest-page .metric-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          margin-bottom: 0.5rem;
+          align-items: center;
+        }
+        .ingest-page .metric-row input {
+          min-width: 0;
+        }
+        .ingest-page .metric-name {
+          flex: 2 1 160px;
+        }
+        .ingest-page .metric-value {
+          flex: 1 1 90px;
+        }
+        .ingest-page .metric-unit {
+          flex: 1 1 90px;
+        }
+        .ingest-page .metric-row .btn-icon {
+          flex: 0 0 auto;
+        }
+        .ingest-page .dropzone {
+          border: 2px dashed hsl(var(--border-glass));
+          border-radius: 12px;
+          padding: clamp(1.5rem, 5vw, 3rem);
+          text-align: center;
+          margin-bottom: 1.5rem;
+          background-color: hsl(var(--bg-main));
+        }
+        .ingest-page .dropzone input[type="file"] {
+          width: 100%;
+          max-width: 100%;
+        }
+        .ingest-page .batch-summary {
+          margin-bottom: 1.5rem;
+          padding: 1rem;
+          border-radius: 8px;
+        }
+        .ingest-page .batch-errors {
+          margin-top: 1rem;
+          font-size: 0.85rem;
+          max-height: 150px;
+          overflow-y: auto;
+          background: hsl(var(--bg-card));
+          padding: 0.5rem;
+          border-radius: 4px;
+          border: 1px solid hsl(var(--border-glass));
+          word-break: break-word;
+        }
+      `}</style>
+
       <div style={{ marginBottom: "2rem" }}>
         <h2 className="page-title">Data Ingestion</h2>
         <p className="page-subtitle">Push data directly into InfluxDB via manual entry or bulk CSV upload.</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem", alignItems: "start" }}>
-        
+      <div className="ingest-grid">
+
         {/* Manual Entry Form */}
         <div className="card">
           <h3 style={{ marginBottom: "1.5rem" }}>Manual Entry</h3>
-          
+
           {manualResult && (
             <div className="error-alert" style={{ backgroundColor: "hsl(var(--color-ok) / 0.1)", color: "hsl(var(--color-ok))", borderColor: "hsl(var(--color-ok) / 0.3)", marginBottom: "1.5rem" }}>
               <i className="ri-check-line"></i> Successfully ingested {manualResult.records_ingested} records.
@@ -138,11 +221,11 @@ export default function IngestPage() {
           )}
 
           <form onSubmit={handleManualSubmit}>
-            <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
-              <div style={{ flex: 1 }}>
+            <div className="field-row">
+              <div>
                 <label className="filter-label">Source ID *</label>
-                <select 
-                  className="input-control" 
+                <select
+                  className="input-control"
                   style={{ width: "100%" }}
                   value={manualSourceId}
                   onChange={(e) => setManualSourceId(e.target.value)}
@@ -153,11 +236,11 @@ export default function IngestPage() {
                   ))}
                 </select>
               </div>
-              <div style={{ flex: 1 }}>
+              <div>
                 <label className="filter-label">Timestamp (Optional)</label>
-                <input 
-                  type="datetime-local" 
-                  className="input-control" 
+                <input
+                  type="datetime-local"
+                  className="input-control"
                   style={{ width: "100%" }}
                   value={manualTimestamp}
                   onChange={(e) => setManualTimestamp(e.target.value)}
@@ -168,22 +251,22 @@ export default function IngestPage() {
             <div style={{ marginBottom: "1.5rem" }}>
               <label className="filter-label">Metrics (Min 2 required)</label>
               {manualMetrics.map((m, idx) => (
-                <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
-                  <input type="text" className="input-control" placeholder="Metric Name (e.g. cpu_usage)" value={m.metric} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].metric = e.target.value; setManualMetrics(newM); }} style={{ flex: 2 }} />
-                  <input type="number" step="any" className="input-control" placeholder="Value" value={m.value} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].value = e.target.value; setManualMetrics(newM); }} style={{ flex: 1 }} />
-                  <input type="text" className="input-control" placeholder="Unit" value={m.unit} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].unit = e.target.value; setManualMetrics(newM); }} style={{ flex: 1 }} />
-                  <button type="button" className="btn" style={{ padding: "0.5rem", background: "transparent", color: "hsl(var(--color-critical))" }} onClick={() => removeMetricRow(idx)} disabled={manualMetrics.length <= 2}>
+                <div key={idx} className="metric-row">
+                  <input type="text" className="input-control metric-name" placeholder="Metric Name (e.g. cpu_usage)" value={m.metric} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].metric = e.target.value; setManualMetrics(newM); }} />
+                  <input type="number" step="any" className="input-control metric-value" placeholder="Value" value={m.value} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].value = e.target.value; setManualMetrics(newM); }} />
+                  <input type="text" className="input-control metric-unit" placeholder="Unit" value={m.unit} onChange={(e) => { const newM = [...manualMetrics]; newM[idx].unit = e.target.value; setManualMetrics(newM); }} />
+                  <button type="button" className="btn btn-icon btn-danger" onClick={() => removeMetricRow(idx)} disabled={manualMetrics.length <= 2}>
                     <i className="ri-delete-bin-line"></i>
                   </button>
                 </div>
               ))}
-              <button type="button" className="btn" style={{ padding: "0.5rem 1rem", background: "transparent", border: "1px dashed hsl(var(--border-glass))", width: "100%", marginTop: "0.5rem" }} onClick={addMetricRow}>
+              <button type="button" className="btn btn-ghost" style={{ width: "100%", marginTop: "0.5rem", borderStyle: "dashed" }} onClick={addMetricRow}>
                 <i className="ri-add-line"></i> Add Metric Row
               </button>
             </div>
 
-            <button type="submit" className="btn btn-primary" style={{ width: "100%" }} disabled={isSubmittingManual}>
-              {isSubmittingManual ? "Submitting..." : "Submit to InfluxDB"}
+            <button type="submit" className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "0.65rem" }} disabled={isSubmittingManual}>
+              {isSubmittingManual ? <><i className="ri-loader-4-line ri-spin"></i> Submitting...</> : <><i className="ri-send-plane-line"></i> Submit to InfluxDB</>}
             </button>
           </form>
         </div>
@@ -191,7 +274,7 @@ export default function IngestPage() {
         {/* CSV Batch Upload */}
         <div className="card">
           <h3 style={{ marginBottom: "1.5rem" }}>CSV Batch Upload</h3>
-          
+
           {batchError && (
             <div className="error-alert" style={{ marginBottom: "1.5rem" }}>
               <i className="ri-error-warning-line"></i> {batchError}
@@ -199,7 +282,7 @@ export default function IngestPage() {
           )}
 
           {batchResult && (
-            <div style={{ marginBottom: "1.5rem", padding: "1rem", borderRadius: "8px", border: `1px solid ${batchResult.records_rejected ? 'hsl(var(--color-warning))' : 'hsl(var(--color-ok))'}`, backgroundColor: batchResult.records_rejected ? 'hsl(var(--color-warning) / 0.1)' : 'hsl(var(--color-ok) / 0.1)' }}>
+            <div className="batch-summary" style={{ border: `1px solid ${batchResult.records_rejected ? 'hsl(var(--color-warning))' : 'hsl(var(--color-ok))'}`, backgroundColor: batchResult.records_rejected ? 'hsl(var(--color-warning) / 0.1)' : 'hsl(var(--color-ok) / 0.1)' }}>
               <h4 style={{ marginBottom: "0.5rem" }}>Upload Complete</h4>
               <ul style={{ margin: 0, paddingLeft: "1.5rem" }}>
                 <li><strong>{batchResult.records_ingested}</strong> records ingested successfully.</li>
@@ -207,9 +290,9 @@ export default function IngestPage() {
                   <li style={{ color: "hsl(var(--color-critical))" }}><strong>{batchResult.records_rejected}</strong> records rejected.</li>
                 )}
               </ul>
-              
+
               {batchResult.errors && batchResult.errors.length > 0 && (
-                <div style={{ marginTop: "1rem", fontSize: "0.85rem", maxHeight: "150px", overflowY: "auto", background: "hsl(var(--bg-card))", padding: "0.5rem", borderRadius: "4px", border: "1px solid hsl(var(--border-glass))" }}>
+                <div className="batch-errors">
                   {batchResult.errors.map((e, i) => (
                     <div key={i} style={{ color: "hsl(var(--color-critical))", marginBottom: "0.25rem" }}>
                       <strong>Row {e.row}:</strong> {e.reason}
@@ -221,31 +304,23 @@ export default function IngestPage() {
           )}
 
           <form onSubmit={handleBatchSubmit}>
-            <div style={{ 
-              border: "2px dashed hsl(var(--border-glass))", 
-              borderRadius: "12px", 
-              padding: "3rem", 
-              textAlign: "center",
-              marginBottom: "1.5rem",
-              backgroundColor: "hsl(var(--bg-main))"
-            }}>
+            <div className="dropzone">
               <i className="ri-file-upload-line" style={{ fontSize: "3rem", color: "hsl(var(--text-muted))" }}></i>
               <h4 style={{ margin: "1rem 0 0.5rem" }}>Upload CSV File</h4>
               <p style={{ color: "hsl(var(--text-muted))", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
-                Expected columns: <code>timestamp, source_id, metric, value, unit</code>
+                Expected columns: <code>timestamp, source_id, source_type, metric, value, unit</code>
               </p>
-              <input 
-                type="file" 
-                id="csvUpload" 
+              <input
+                type="file"
+                id="csvUpload"
                 accept=".csv"
                 onChange={handleFileChange}
-                style={{ width: "100%" }}
                 required
               />
             </div>
-            
-            <button type="submit" className="btn btn-primary" style={{ width: "100%" }} disabled={isSubmittingBatch || !csvFile}>
-              {isSubmittingBatch ? "Uploading..." : "Upload & Process"}
+
+            <button type="submit" className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "0.65rem" }} disabled={isSubmittingBatch || !csvFile}>
+              {isSubmittingBatch ? <><i className="ri-loader-4-line ri-spin"></i> Uploading...</> : <><i className="ri-upload-cloud-line"></i> Upload &amp; Process</>}
             </button>
           </form>
         </div>
