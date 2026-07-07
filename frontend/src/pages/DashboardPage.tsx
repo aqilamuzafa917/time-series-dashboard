@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { apiGet } from "../api";
-import { SummaryItem, LatestItem } from "../types";
+import { SummaryItem, LatestItem, TimeseriesItem } from "../types";
+import TimeRangeSelector from "../components/TimeRangeSelector";
 
 export default function DashboardPage() {
-  // Default time range: Last 24 hours
   const getInitialTimeRange = () => {
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
-    // Format to YYYY-MM-DDTHH:MM for HTML input datetime-local
+
     const formatLocal = (date: Date) => {
       const offsetMs = date.getTimezoneOffset() * 60 * 1000;
-      const localISOTime = new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-      return localISOTime;
+      return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
     };
 
     return {
@@ -22,28 +22,43 @@ export default function DashboardPage() {
   };
 
   const [timeRange, setTimeRange] = useState(getInitialTimeRange());
+  const [activeSources, setActiveSources] = useState<string[] | null>(null); // null = not yet loaded
   const [summaryData, setSummaryData] = useState<SummaryItem[] | null>(null);
   const [latestData, setLatestData] = useState<LatestItem[] | null>(null);
+  const [timeseriesData, setTimeseriesData] = useState<TimeseriesItem[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
+  // Load active sources once on mount
   useEffect(() => {
+    apiGet<{ sources: string[]; metrics: string[] }>("/api/metrics/list", { active_only: "true" })
+      .then((data) => setActiveSources(data.sources))
+      .catch(() => setActiveSources([]));
+  }, []);
+
+  useEffect(() => {
+    // Wait until active sources have been resolved
+    if (activeSources === null) return;
+
     setLoading(true);
     setError(null);
 
-    // Convert local datetime-local format back to standard ISO string (UTC)
     const startISO = new Date(timeRange.start).toISOString();
     const endISO = new Date(timeRange.end).toISOString();
 
-    // Fetch summary and latest records in parallel
+    // Pass active source IDs as filter; if list is empty no data will match
+    const sourceFilter = activeSources.length > 0 ? { source_id: activeSources } : {};
+
     Promise.all([
-      apiGet<SummaryItem[]>("/api/metrics/summary", { start: startISO, end: endISO }),
-      apiGet<LatestItem[]>("/api/metrics/latest", { limit: "20" }),
+      apiGet<SummaryItem[]>("/api/metrics/summary", { start: startISO, end: endISO, ...sourceFilter }),
+      apiGet<LatestItem[]>("/api/metrics/latest", { limit: "20", ...sourceFilter }),
+      apiGet<TimeseriesItem[]>("/api/metrics/timeseries", { start: startISO, end: endISO, interval: "1h", ...sourceFilter })
     ])
-      .then(([summary, latest]) => {
+      .then(([summary, latest, ts]) => {
         setSummaryData(summary);
         setLatestData(latest);
+        setTimeseriesData(ts);
       })
       .catch((err) => {
         setError(err.message || "Failed to load dashboard data.");
@@ -51,15 +66,9 @@ export default function DashboardPage() {
       .finally(() => {
         setLoading(false);
       });
-  }, [timeRange, retryCount]);
+  }, [timeRange, activeSources, retryCount]);
 
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setTimeRange((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+
 
   const handleRetry = () => {
     setRetryCount((prev) => prev + 1);
@@ -77,10 +86,74 @@ export default function DashboardPage() {
     return "badge-ok";
   };
 
-  // Convert key names into readable text (e.g. cpu_usage -> CPU Usage)
+  const getStatColor = (status: SummaryItem["status"]) => {
+    if (status === "critical") return "hsl(var(--color-critical))";
+    if (status === "warning") return "hsl(var(--color-warning))";
+    return "hsl(var(--text-primary))";
+  };
+
   const formatMetricLabel = (label: string) => {
     return label.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
   };
+
+  // Build a lookup: "source_id|metric" -> unit string from latestData
+  const unitLookup = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    if (latestData) {
+      latestData.forEach((item) => {
+        map[`${item.source_id}|${item.metric}`] = item.unit;
+      });
+    }
+    return map;
+  }, [latestData]);
+
+  // Convert raw unit strings from the DB to display symbols
+  const unitToSymbol = (unit: string): string => {
+    const u = unit.trim().toLowerCase();
+    if (u === "percent" || u === "%") return "%";
+    if (u === "celsius" || u === "°c" || u === "c") return "°C";
+    if (u === "mb/s" || u === "megabytes/s" || u === "mbps") return "MB/s";
+    if (u === "watt" || u === "watts" || u === "w") return "W";
+    if (u === "gb" || u === "gigabytes") return "GB";
+    if (u === "mb" || u === "megabytes") return "MB";
+    if (u === "kb" || u === "kilobytes") return "KB";
+    if (u === "kb/s" || u === "kilobytes/s" || u === "kbps") return "KB/s";
+    if (u === "gb/s" || u === "gigabytes/s" || u === "gbps") return "GB/s";
+    if (u === "ms" || u === "milliseconds") return "ms";
+    if (u === "s" || u === "seconds") return "s";
+    if (u === "rpm") return "RPM";
+    // Return as-is if no mapping found
+    return unit;
+  };
+
+  // Group timeseries data for the chart
+  const chartData = React.useMemo(() => {
+    if (!timeseriesData) return [];
+    const grouped: Record<string, any> = {};
+
+    timeseriesData.forEach(item => {
+      const time = new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (!grouped[time]) {
+        grouped[time] = { time };
+      }
+      const key = `${item.source_id}_${item.metric}`;
+      grouped[time][key] = item.avg;
+    });
+
+    return Object.values(grouped);
+  }, [timeseriesData]);
+
+  // Extract unique lines
+  const lineKeys = React.useMemo(() => {
+    if (!timeseriesData) return [];
+    const keys = new Set<string>();
+    timeseriesData.forEach(item => {
+      keys.add(`${item.source_id}_${item.metric}`);
+    });
+    return Array.from(keys);
+  }, [timeseriesData]);
+
+  const colors = ["#1A8FE3", "#F5A623", "#2FBF9F", "#6FCF97", "#D6249F", "#8884d8", "#FF8042"];
 
   return (
     <div>
@@ -89,30 +162,8 @@ export default function DashboardPage() {
         <p className="page-subtitle">Historical aggregates and latest live telemetry logs</p>
       </div>
 
-      {/* Time Range Filter Bar */}
       <div className="filter-bar">
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="start">Start Time</label>
-          <input
-            id="start"
-            type="datetime-local"
-            name="start"
-            value={timeRange.start}
-            onChange={handleTimeChange}
-            className="input-control"
-          />
-        </div>
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="end">End Time</label>
-          <input
-            id="end"
-            type="datetime-local"
-            name="end"
-            value={timeRange.end}
-            onChange={handleTimeChange}
-            className="input-control"
-          />
-        </div>
+        <TimeRangeSelector timeRange={timeRange} onChange={setTimeRange} />
         {error && (
           <button className="btn-action" onClick={handleRetry} style={{ height: "38px" }}>
             Retry Request
@@ -137,13 +188,14 @@ export default function DashboardPage() {
 
       {!loading && !error && (
         <>
-          {/* Summary Cards Grid */}
           <div className="grid-summary">
             {summaryData && summaryData.length > 0 ? (
               summaryData.map((item, idx) => (
-                <div
+                <Link
                   key={`${item.source_id}-${item.metric}-${idx}`}
+                  to={`/detail/${item.source_id}/${item.metric}`}
                   className={`card ${getStatusCardClass(item.status)}`}
+                  style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s' }}
                 >
                   <div className="card-header-info">
                     <div>
@@ -158,25 +210,25 @@ export default function DashboardPage() {
                   <div className="card-value-display">
                     <span className="card-current-value">{item.current.toFixed(1)}</span>
                     <span className="card-unit">
-                      {item.metric.includes("usage") ? "%" : item.metric.includes("temp") ? "°C" : "MB/s"}
+                      {unitToSymbol(unitLookup[`${item.source_id}|${item.metric}`] ?? "")}
                     </span>
                   </div>
 
                   <div className="card-stats-row">
                     <div className="stat-box">
-                      <div className="stat-label">Min</div>
-                      <div className="stat-val">{item.min.toFixed(1)}</div>
+                      <div className="stat-label" style={{ color: getStatColor(item.status_min) }}>Min</div>
+                      <div className="stat-val" style={{ color: getStatColor(item.status_min) }}>{item.min.toFixed(1)}</div>
                     </div>
                     <div className="stat-box">
-                      <div className="stat-label">Avg</div>
-                      <div className="stat-val">{item.avg.toFixed(1)}</div>
+                      <div className="stat-label" style={{ color: getStatColor(item.status_avg) }}>Avg</div>
+                      <div className="stat-val" style={{ color: getStatColor(item.status_avg) }}>{item.avg.toFixed(1)}</div>
                     </div>
                     <div className="stat-box">
-                      <div className="stat-label">Max</div>
-                      <div className="stat-val">{item.max.toFixed(1)}</div>
+                      <div className="stat-label" style={{ color: getStatColor(item.status_max) }}>Max</div>
+                      <div className="stat-val" style={{ color: getStatColor(item.status_max) }}>{item.max.toFixed(1)}</div>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))
             ) : (
               <div className="empty-state" style={{ gridColumn: "1 / -1" }}>
@@ -186,7 +238,33 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Latest Records Table */}
+          {/* Trend Chart */}
+          {chartData.length > 0 && (
+            <div className="card" style={{ marginTop: "1.5rem" }}>
+              <h3 style={{ marginBottom: "1rem", fontSize: "1.1rem" }}>Global Trend Overview</h3>
+              <div style={{ height: "300px", width: "100%" }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--text-muted))" opacity={0.3} />
+                    <XAxis dataKey="time" />
+                    <YAxis />
+                    <Tooltip />
+                    {lineKeys.map((key, i) => (
+                      <Line
+                        key={key}
+                        type="monotone"
+                        dataKey={key}
+                        stroke={colors[i % colors.length]}
+                        dot={false}
+                        activeDot={{ r: 8 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
           <div className="table-container">
             <div className="table-header-box">
               <h3 className="table-title">Latest Ingested Logs</h3>

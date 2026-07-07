@@ -13,6 +13,7 @@ load_dotenv("../.env")
 INFLUXDB_URL = os.getenv("INFLUXDB_URL", "http://localhost:8181")
 INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN")
 INFLUXDB_DATABASE = os.getenv("INFLUXDB_DATABASE", "monitoring")
+INFLUXDB_MEASUREMENT = os.getenv("INFLUXDB_MEASUREMENT", "device_metrics")
 
 # Fallback for host.docker.internal if running on host where it cannot be resolved
 if "host.docker.internal" in INFLUXDB_URL:
@@ -51,9 +52,7 @@ def generate_data():
     """Generate 48 hours of 1-minute interval data for all sources and metrics."""
     data_points = []
     total_minutes = 48 * 60
-    # Use Jakarta timezone (UTC+7)
-    jakarta_tz = timezone(timedelta(hours=7))
-    end_time = datetime.now(jakarta_tz).replace(second=0, microsecond=0)
+    end_time = datetime.now(timezone.utc).replace(second=0, microsecond=0)
     start_time = end_time - timedelta(minutes=total_minutes)
 
     print(f"Generating time-series data from {start_time.isoformat()} to {end_time.isoformat()}...")
@@ -85,8 +84,8 @@ def generate_data():
                         value = 88.0
 
                 # Format as InfluxDB Line Protocol:
-                # device_metrics,source_id=<sid>,source_type=<stype>,metric=<metric> value=<val>,unit="<unit>" <timestamp_ns>
-                lp_line = f'device_metrics,source_id={src["id"]},source_type={src["type"]},metric={metric} value={value:.2f},unit="{unit}" {timestamp_ns}'
+                # measurement,source_id=<sid>,source_type=<stype>,metric=<metric> value=<val>,unit="<unit>" <timestamp_ns>
+                lp_line = f'{INFLUXDB_MEASUREMENT},source_id={src["id"]},source_type={src["type"]},metric={metric} value={value:.2f},unit="{unit}" {timestamp_ns}'
                 data_points.append(lp_line)
 
     return data_points

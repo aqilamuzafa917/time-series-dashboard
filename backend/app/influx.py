@@ -50,8 +50,9 @@ async def query_sql(sql: str, params: dict, settings: Settings) -> list[dict]:
         raise HTTPException(status_code=503, detail="InfluxDB unavailable")
 
     if not response.is_success:
-        print(f"DEBUG: InfluxDB query_sql non-2xx response: {response.status_code} {response.text}")
-        raise HTTPException(status_code=503, detail="InfluxDB unavailable")
+        error_text = response.text
+        print(f"DEBUG: InfluxDB query_sql non-2xx response: {response.status_code} {error_text}")
+        raise HTTPException(status_code=503, detail=f"InfluxDB error: {error_text}")
 
     return response.json()
 
@@ -71,8 +72,35 @@ async def write_lp(lp: str, settings: Settings) -> None:
                 content=lp.encode("utf-8"),
                 timeout=30.0,
             )
-    except httpx.RequestError:
+    except httpx.RequestError as e:
+        print(f"DEBUG: InfluxDB write_lp RequestError: {e}")
         raise HTTPException(status_code=503, detail="InfluxDB unavailable")
 
     if not response.is_success:
+        error_text = response.text
+        print(f"DEBUG: InfluxDB write_lp non-2xx response: {response.status_code} {error_text}")
+        raise HTTPException(status_code=503, detail=f"InfluxDB error: {error_text}")
+
+
+async def query_influxql(sql: str, settings: Settings) -> dict:
+    """GET /query for InfluxQL queries like SHOW TAG VALUES.
+    This bypasses the Parquet file scan limit by using the metadata catalog.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{settings.influxdb_url}/query",
+                params={"db": settings.influxdb_database, "q": sql},
+                headers={"Authorization": f"Token {settings.influxdb_token}"},
+                timeout=10.0,
+            )
+    except httpx.RequestError as e:
+        print(f"DEBUG: InfluxDB query_influxql RequestError: {e}")
         raise HTTPException(status_code=503, detail="InfluxDB unavailable")
+
+    if not response.is_success:
+        error_text = response.text
+        print(f"DEBUG: InfluxDB query_influxql non-2xx response: {response.status_code} {error_text}")
+        raise HTTPException(status_code=503, detail=f"InfluxDB error: {error_text}")
+
+    return response.json()

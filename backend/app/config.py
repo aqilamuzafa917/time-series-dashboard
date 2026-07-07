@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     influxdb_url: str
     influxdb_token: str
     influxdb_database: str
+    influxdb_measurement: str
 
     class Config:
         env_file = ".env"

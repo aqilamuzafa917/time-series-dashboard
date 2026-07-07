@@ -19,13 +19,15 @@ services:
     build: ./backend
     ports: [ "8000:8000" ]
     environment:
-      INFLUXDB_URL: http://host.docker.internal:8181
+      INFLUXDB_URL: ${INFLUXDB_URL}
       INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
       INFLUXDB_DATABASE: ${INFLUXDB_DATABASE}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-
+      INFLUXDB_MEASUREMENT: ${INFLUXDB_MEASUREMENT}
+    volumes:
+      - ./backend/config:/app/config
+    # depends_on:
+    #   influxdb:
+    #     condition: service_healthy
 
   frontend:
     build: ./frontend
