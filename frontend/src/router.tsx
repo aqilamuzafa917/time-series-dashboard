@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createBrowserRouter, Outlet, NavLink } from "react-router-dom";
 import StatusPage from "./pages/StatusPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -6,12 +6,27 @@ import ExplorerPage from "./pages/ExplorerPage";
 import IngestionPage from "./pages/IngestionPage";
 import SourcesPage from "./pages/SourcesPage";
 import ThresholdsPage from "./pages/ThresholdsPage";
-import HistoryPage from "./pages/HistoryPage";
 import IngestPage from "./pages/IngestPage";
 import DetailPage from "./pages/DetailPage";
-import ReportPage from "./pages/ReportPage";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const Layout = () => {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatUTC = (date: Date) => {
+    const formatDate = date.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' });
+    const format24 = date.toLocaleTimeString('en-GB', { timeZone: 'UTC', hour12: false });
+    const format12 = date.toLocaleTimeString('en-US', { timeZone: 'UTC', hour12: true });
+    return { formatDate, format24, format12 };
+  };
+
+  const { formatDate, format24, format12 } = formatUTC(time);
+
   return (
     <div className="app-container">
       <aside className="sidebar">
@@ -51,21 +66,24 @@ const Layout = () => {
             Thresholds
           </NavLink>
 
-          <NavLink to="/history" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
-            <span className="nav-icon"><i className="ri-history-line"></i></span>
-            History
-          </NavLink>
 
           <NavLink to="/ingest" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
             <span className="nav-icon"><i className="ri-file-upload-line"></i></span>
-            Ingest
-          </NavLink>
-
-          <NavLink to="/report" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
-            <span className="nav-icon"><i className="ri-file-chart-line"></i></span>
-            Report
+            Manual Ingest
           </NavLink>
         </nav>
+        
+        <div style={{
+          marginTop: "auto",
+          padding: "1.5rem",
+          color: "hsl(var(--text-muted))",
+          fontSize: "0.75rem",
+          opacity: 0.6
+        }}>
+          <div style={{ marginBottom: "0.4rem", fontWeight: 600 }}>{formatDate}</div>
+          <div>UTC: {format24}</div>
+          <div style={{ marginTop: "0.2rem", fontSize: "0.65rem" }}>{format12}</div>
+        </div>
       </aside>
 
       <main className="main-content">
@@ -79,6 +97,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <Layout />,
+    errorElement: <ErrorBoundary />,
     children: [
       { path: "", element: <StatusPage /> },
       { path: "dashboard", element: <DashboardPage /> },
@@ -86,10 +105,8 @@ export const router = createBrowserRouter([
       { path: "ingestion", element: <IngestionPage /> },
       { path: "sources", element: <SourcesPage /> },
       { path: "thresholds", element: <ThresholdsPage /> },
-      { path: "history", element: <HistoryPage /> },
       { path: "ingest", element: <IngestPage /> },
       { path: "detail/:source_id/:metric", element: <DetailPage /> },
-      { path: "report", element: <ReportPage /> },
     ],
   },
 ]);

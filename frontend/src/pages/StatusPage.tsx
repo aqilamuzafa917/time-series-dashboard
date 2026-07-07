@@ -8,6 +8,16 @@ export default function StatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
+  const [currentUtcTime, setCurrentUtcTime] = useState<string>("");
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentUtcTime(new Date().toUTCString());
+    }, 1000);
+    setCurrentUtcTime(new Date().toUTCString());
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -120,6 +130,15 @@ export default function StatusPage() {
               </h4>
               <p style={{ fontFamily: "monospace", fontSize: "1.1rem" }}>
                 {new Date(data.timestamp).toLocaleString()}
+              </p>
+            </div>
+
+            <div className="card">
+              <h4 style={{ fontSize: "0.9rem", fontWeight: 600, color: "hsl(var(--text-secondary))", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>
+                Current UTC Time
+              </h4>
+              <p style={{ fontFamily: "monospace", fontSize: "1.1rem" }}>
+                {currentUtcTime}
               </p>
             </div>
           </div>
