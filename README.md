@@ -76,6 +76,60 @@ TS -- SQL / InfluxQL --> API
 API <--> UI
 ```
 
+## Project Structure
+
+```text
+time-series-dashboard/
+├── backend/                             # FastAPI Backend API Gateway
+│   ├── app/
+│   │   ├── config.py                    # Environment and app configuration
+│   │   ├── influx.py                    # InfluxDB client and SQL query helpers
+│   │   ├── main.py                      # FastAPI application entry point
+│   │   └── routers/                     # API Endpoints
+│   │       ├── health.py                # Health check endpoints
+│   │       ├── ingest.py                # Manual & CSV ingestion logic
+│   │       ├── ingestion.py             # Ingestion monitoring logs
+│   │       ├── metrics.py               # Time-series querying & summarization
+│   │       ├── sources.py               # Source metadata management
+│   │       └── thresholds.py            # Threshold rules management
+│   ├── config/
+│   │   ├── sources.json                 # Auto-synced source metadata definitions
+│   │   └── thresholds.json              # Configurable warning/critical thresholds
+│   ├── Dockerfile                       # Container definition for backend
+│   └── requirements.txt                 # Python dependencies
+├── frontend/                            # React SPA Web Interface
+│   ├── index.html                       # HTML Entry point
+│   ├── package.json                     # Node.js dependencies
+│   ├── tsconfig.json                    # TypeScript configuration
+│   ├── vite.config.ts                   # Vite bundler configuration
+│   ├── Dockerfile                       # Container definition for frontend
+│   └── src/
+│       ├── api.ts                       # Generic fetch wrapper for backend calls
+│       ├── index.css                    # Global styles and CSS variables
+│       ├── main.tsx                     # React root mount
+│       ├── router.tsx                   # React Router configuration
+│       ├── types.ts                     # Shared TypeScript interfaces
+│       ├── components/
+│       │   ├── ErrorBoundary.tsx        # Fallback UI for React rendering errors
+│       │   └── TimeRangeSelector.tsx    # Dropdown for time range filtering
+│       └── pages/                       # Application Views
+│           ├── DashboardPage.tsx        # High-level metrics overview and trend chart
+│           ├── DetailPage.tsx           # Single metric deep-dive with threshold limits
+│           ├── ExplorerPage.tsx         # Tabular data explorer with CSV export
+│           ├── IngestPage.tsx           # Data entry forms (Manual & CSV upload)
+│           ├── IngestionPage.tsx        # Ingestion activity logs
+│           ├── SourcesPage.tsx          # Manage active/inactive source status
+│           ├── StatusPage.tsx           # High-level system health overview
+│           └── ThresholdsPage.tsx       # Manage metric threshold limits
+├── ingestion/                           # Data Production Utilities
+│   ├── generate_and_load.py             # Synthetic data generator script
+│   └── requirements.txt                 # Generator dependencies
+├── docs/                                # Documentation assets
+│   └── screenshots/                     # UI visual references
+├── docker-compose.yml                   # Service orchestration
+└── .env.example                         # Environment variable template
+```
+
 This section explains the end-to-end relationship between each component in the stack — how data is produced, stored, queried, and finally visualized.
 
 ### 1. Data Producer (Ingestion)
@@ -256,3 +310,34 @@ device_metrics,source_id=server-01,source_type=server,metric=cpu_usage value=42.
 * **Backend API Documentation (Swagger UI):** [http://localhost:8000/docs](http://localhost:8000/docs)
 * **Backend Health Check Endpoint:** [http://localhost:8000/api/health](http://localhost:8000/api/health)
 * **Influxdata built-in UI** [http://localhost:8889/databases](http://localhost:8889/databases)
+
+---
+
+## AI Assistant Contribution Log
+
+| Step | AI Tool | Prompt / Purpose | AI Contribution | Human Review / Modification |
+|---|---|---|---|---|
+| 1 | Kiro | Generate implementation plan | Created project roadmap, architecture, and task breakdown | Simplified scope to match assessment and timeline |
+| 2 | ChatGPT | Review architecture | Reviewed design against assessment requirements | Removed overengineering and validated architecture |
+| 3 | Kiro | Generate project scaffold | Created Docker Compose, folder structure, and backend/frontend scaffolding | Adjusted environment configuration and persistence |
+| 4 | Antigravity | Implement InfluxDB client | Generated health check, SQL helper, and Line Protocol writer | Verified against InfluxDB 3 Core documentation |
+| 5 | Antigravity | Generate REST API | Implemented health, summary, latest, timeseries, and ingestion endpoints | Reviewed queries and response models |
+| 6 | Antigravity | Generate data generator | Created synthetic monitoring data generator | Tuned metrics, spikes, timestamps, and dataset realism |
+| 7 | Antigravity | Generate React frontend | Created React pages, routing, and reusable components | Simplified component structure and navigation |
+| 8 | Antigravity | Generate dashboard UI | Implemented charts, summary cards, tables, filters, and status indicators | Improved layout and API integration |
+| 9 | ChatGPT | Explain generated code | Explained architecture and implementation in Bahasa Indonesia | Used for interview preparation and code understanding |
+| 10 | Antigravity | Optimize metadata queries | Replaced SQL DISTINCT with SHOW TAG VALUES for source and metric lookup | Validated using InfluxDB 3 Core documentation |
+| 11 | Antigravity | Improve configuration persistence | Added Docker bind mount for sources.json and thresholds.json | Verified persistence across container restarts |
+| 12 | Antigravity | Fix source synchronization | Synced sources from InfluxDB, corrected source_type, and removed stale overrides | Verified source metadata and fallback logic |
+| 13 | Antigravity | Enhance metric status | Added threshold status for current, average, minimum, and maximum values | Verified threshold calculations and UI colors |
+| 14 | Antigravity | Extend ingestion monitoring | Added ingestion log endpoint and configurable time range | Verified filtering and frontend integration |
+| 15 | Antigravity | Support active sources | Filtered inactive sources across dashboard, explorer, report, and ingestion pages | Verified active-only behavior |
+| 16 | Antigravity | Improve report and detail pages | Refined Report page, Detail page, Error Boundary, and custom time range handling | Fixed UI bugs and improved user experience |
+| 17 | Antigravity | End-to-end bug fixing | Fixed source management, ingestion errors, measurement configuration, and page issues | Performed manual E2E verification and removed redundant History page |
+| 18 | Antigravity | Improve print layout | Hid navigation bar during browser print/PDF export | Verified print layout and report readability |
+| 19 | Antigravity | Add UTC clock | Added UTC clock to navigation bar for quick timestamp reference | Verified UTC display and consistency with stored timestamps |
+| 20 | ChatGPT | Review application modules | Reviewed assessment requirements and page structure | Removed standalone Report page and merged reporting features into Explorer after assessor clarified modules were references only |
+| 21 | Antigravity | Fix CSV export metadata | Included source_type in timeseries queries, response models, and CSV export | Verified exported CSV now contains the correct source_type from InfluxDB instead of a hardcoded "unknown" |
+| 22 | Antigravity | Fix color coding logic | Ensured color coding respects active/inactive threshold status | Verified status computation in backend |
+| 23 | Antigravity | Fix unit display | Fetched unit directly from latest data point instead of hardcoded config | Verified units display correctly on Dashboard cards |
+| 24 | Antigravity | Support raw metric editing | Removed metric name parsing and added raw metric name edit functionality | Verified metrics match database exactly |
