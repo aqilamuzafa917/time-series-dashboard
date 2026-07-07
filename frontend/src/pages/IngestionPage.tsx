@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { apiGet } from "../api";
-import { IngestionSummary, IngestionError } from "../types";
+import { IngestionSummary, IngestionError, IngestionLogItem } from "../types";
+import TimeRangeSelector from "../components/TimeRangeSelector";
 
 export default function IngestionPage() {
   const [summary, setSummary] = useState<IngestionSummary | null>(null);
@@ -8,13 +9,29 @@ export default function IngestionPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  // Log table has its own independent time range
+  const getInitialLogRange = () => {
+    const now = new Date();
+    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    const formatLocal = (d: Date) => {
+      const offsetMs = d.getTimezoneOffset() * 60 * 1000;
+      return new Date(d.getTime() - offsetMs).toISOString().slice(0, 16);
+    };
+    return { start: formatLocal(sixHoursAgo), end: formatLocal(now) };
+  };
+
+  const [logTimeRange, setLogTimeRange] = useState(getInitialLogRange);
+  const [log, setLog] = useState<IngestionLogItem[]>([]);
+  const [logLoading, setLogLoading] = useState(true);
+
+  // Fetch summary + errors (not time-range dependent)
   const fetchData = async () => {
     setLoading(true);
     setFetchError(null);
     try {
       const [sumData, errData] = await Promise.all([
         apiGet<IngestionSummary>("/api/ingestion/summary"),
-        apiGet<IngestionError[]>("/api/ingestion/errors")
+        apiGet<IngestionError[]>("/api/ingestion/errors"),
       ]);
       setSummary(sumData);
       setErrors(errData);
@@ -25,9 +42,24 @@ export default function IngestionPage() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Fetch log whenever time range changes
+  const fetchLog = async (range: { start: string; end: string }) => {
+    setLogLoading(true);
+    try {
+      const data = await apiGet<IngestionLogItem[]>("/api/ingestion/log", {
+        start: new Date(range.start).toISOString(),
+        end: new Date(range.end).toISOString(),
+      });
+      setLog(data);
+    } catch {
+      setLog([]);
+    } finally {
+      setLogLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchLog(logTimeRange); }, [logTimeRange]);
 
   return (
     <div>
@@ -38,7 +70,7 @@ export default function IngestionPage() {
         </div>
         <button 
           className="btn btn-primary" 
-          onClick={fetchData} 
+          onClick={() => { fetchData(); fetchLog(logTimeRange); }} 
           disabled={loading}
           style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
         >
@@ -142,6 +174,58 @@ export default function IngestionPage() {
               </div>
               <h4>No ingestion errors found</h4>
               <p>Everything is running smoothly.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Ingestion Log Table */}
+      <div className="table-container" style={{ marginTop: "2rem" }}>
+        <div className="table-header-box">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+            <h3 className="table-title" style={{ margin: 0 }}>Ingestion Log</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "nowrap" }}>
+              <TimeRangeSelector timeRange={logTimeRange} onChange={setLogTimeRange} />
+              {/* <span style={{ color: "hsl(var(--text-muted))", fontSize: "0.85rem" }}>
+                {log.length} {log.length === 1 ? "entry" : "entries"}
+              </span> */}
+            </div>
+          </div>
+        </div>
+        <div className="table-wrapper">
+          {logLoading ? (
+            <div style={{ padding: "3rem", textAlign: "center", color: "hsl(var(--text-muted))" }}>Loading log...</div>
+          ) : log.length > 0 ? (
+            <table className="metric-table">
+              <thead>
+                <tr>
+                  <th>Time</th> 
+                  <th>Source ID</th>
+                  <th>Method</th>
+                  <th style={{ textAlign: "right" }}>Ingested</th>
+                  <th style={{ textAlign: "right" }}>Rejected</th>
+                </tr>
+              </thead>
+              <tbody>
+                {log.map((row, idx) => (
+                  <tr key={`log-${idx}`}>
+                    <td className="text-muted-col">{new Date(row.time).toLocaleString()}</td>
+                    <td>{row.source_id || "-"}</td>
+                    <td style={{ textTransform: "capitalize" }}>{row.method}</td>
+                    <td style={{ textAlign: "right", color: "hsl(var(--color-ok))", fontWeight: 600 }}>
+                      {row.records_ingested ?? "-"}
+                    </td>
+                    <td style={{ textAlign: "right", color: row.records_rejected ? "hsl(var(--color-critical))" : "hsl(var(--text-muted))", fontWeight: row.records_rejected ? 600 : 400 }}>
+                      {row.records_rejected ?? 0}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state" style={{ border: "none", borderRadius: 0 }}>
+              <h4>No ingestion activity in the selected time range</h4>
+              <p>Records will appear here as data is ingested.</p>
             </div>
           )}
         </div>
