@@ -241,10 +241,10 @@ async def metrics_list(
 ):
     # Fetch from InfluxDB metadata catalog using InfluxQL to avoid Parquet file scans
     try:
-        sql_sources = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "source_id"'
+        sql_sources = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "source_id" WHERE time >= now() - 30d'
         sources_res = await influx.query_influxql(sql_sources, settings)
 
-        sql_metrics = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "metric"'
+        sql_metrics = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "metric" WHERE time >= now() - 30d'
         metrics_res = await influx.query_influxql(sql_metrics, settings)
 
         def extract_values(res: dict) -> list[str]:
