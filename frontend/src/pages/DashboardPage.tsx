@@ -142,6 +142,38 @@ export default function DashboardPage() {
     return Array.from(keys);
   }, [timeseriesData]);
 
+  // Group summary metrics by source_id (original version)
+  // const groupedSummary = React.useMemo(() => {
+  //   if (!summaryData) return {};
+  //   const groups: Record<string, SummaryItem[]> = {};
+  //   summaryData.forEach(item => {
+  //     if (!groups[item.source_id]) {
+  //       groups[item.source_id] = [];
+  //     }
+  //     groups[item.source_id].push(item);
+  //   });
+  //   return groups;
+  // }, [summaryData]);
+
+  // Group summary metrics by source_id and sort alphabetically by metric
+  const groupedSummary = React.useMemo(() => {
+    if (!summaryData) return {};
+    const groups: Record<string, SummaryItem[]> = {};
+    summaryData.forEach(item => {
+      if (!groups[item.source_id]) {
+        groups[item.source_id] = [];
+      }
+      groups[item.source_id].push(item);
+    });
+
+    // Sort cards alphabetically by metric name
+    Object.keys(groups).forEach(sourceId => {
+      groups[sourceId].sort((a, b) => a.metric.localeCompare(b.metric));
+    });
+
+    return groups;
+  }, [summaryData]);
+
   const colors = ["#1A8FE3", "#F5A623", "#2FBF9F", "#6FCF97", "#D6249F", "#8884d8", "#FF8042"];
 
   return (
@@ -177,6 +209,7 @@ export default function DashboardPage() {
 
       {!loading && !error && (
         <>
+          {/* Old Ungrouped Layout:
           <div className="grid-summary">
             {summaryData && summaryData.length > 0 ? (
               summaryData.map((item, idx) => (
@@ -226,6 +259,66 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+          */}
+
+          {summaryData && summaryData.length > 0 ? (
+            Object.entries(groupedSummary)
+              .sort((a, b) => a[0].localeCompare(b[0]))
+              .map(([sourceId, items]) => (
+                <div key={sourceId} className="source-group" style={{ marginBottom: "2rem" }}>
+                <h3 className="source-group-title" style={{ marginBottom: "1rem", fontSize: "1.1rem", fontWeight: 600, borderBottom: "1px solid hsl(var(--border-glass))", paddingBottom: "0.5rem", color: "hsl(var(--color-primary))" }}>
+                  {sourceId}
+                </h3>
+                <div className="grid-summary">
+                  {items.map((item, idx) => (
+                    <Link
+                      key={`${item.source_id}-${item.metric}-${idx}`}
+                      to={`/detail/${item.source_id}/${item.metric}`}
+                      className={`card ${getStatusCardClass(item.status)}`}
+                      style={{ textDecoration: 'none', color: 'inherit', display: 'block', transition: 'transform 0.2s' }}
+                    >
+                      <div className="card-header-info">
+                        <div>
+                          <span className="card-source">{item.source_id}</span>
+                          <h3 className="card-metric-name">{formatMetricLabel(item.metric)}</h3>
+                        </div>
+                        <span className={`badge-status ${getStatusBadgeClass(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </div>
+
+                      <div className="card-value-display">
+                        <span className="card-current-value">{item.current.toFixed(1)}</span>
+                        <span className="card-unit">
+                          {unitToSymbol(item.unit || "")}
+                        </span>
+                      </div>
+
+                      <div className="card-stats-row">
+                        <div className="stat-box">
+                          <div className="stat-label" style={{ color: getStatColor(item.status_min) }}>Min</div>
+                          <div className="stat-val" style={{ color: getStatColor(item.status_min) }}>{item.min.toFixed(1)}</div>
+                        </div>
+                        <div className="stat-box">
+                          <div className="stat-label" style={{ color: getStatColor(item.status_avg) }}>Avg</div>
+                          <div className="stat-val" style={{ color: getStatColor(item.status_avg) }}>{item.avg.toFixed(1)}</div>
+                        </div>
+                        <div className="stat-box">
+                          <div className="stat-label" style={{ color: getStatColor(item.status_max) }}>Max</div>
+                          <div className="stat-val" style={{ color: getStatColor(item.status_max) }}>{item.max.toFixed(1)}</div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="empty-state">
+              <h4>No summary metrics found</h4>
+              <p>No data recorded within the selected timeframe.</p>
+            </div>
+          )}
 
           {/* Trend Chart */}
           {chartData.length > 0 && (
