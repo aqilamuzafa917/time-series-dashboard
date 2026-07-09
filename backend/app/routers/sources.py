@@ -30,7 +30,7 @@ def _get_sources_file() -> Path:
 async def get_sources(request: Request, settings: Settings = Depends(get_settings)):
     # Use InfluxQL SHOW TAG VALUES to get all sources without hitting parquet file limits
     try:
-        sql = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "source_id"'
+        sql = f'SHOW TAG VALUES FROM "{settings.influxdb_measurement}" WITH KEY = "source_id" WHERE time >= now() - 30d'
         res = await influx.query_influxql(sql, settings)
         
         db_source_ids: list[str] = []

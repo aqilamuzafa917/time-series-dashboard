@@ -10,6 +10,7 @@ export default function SourcesPage() {
   // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [newSource, setNewSource] = useState({ source_id: "", display_name: "", source_type: "", description: "", active: true });
+  // const [newSource, setNewSource] = useState({ source_id: "", display_name: "", source_type: "unknown", description: "", active: true });
   const [addError, setAddError] = useState("");
   const [addSaving, setAddSaving] = useState(false);
 
@@ -40,11 +41,16 @@ export default function SourcesPage() {
       setAddError("Source ID and Type are required");
       return;
     }
+    // if (!newSource.source_id) {
+    //   setAddError("Source ID is required");
+    //   return;
+    // }
     setAddSaving(true);
     try {
       await apiPost("/api/sources", newSource);
       setShowAddModal(false);
       setNewSource({ source_id: "", display_name: "", source_type: "", description: "", active: true });
+      // setNewSource({ source_id: "", display_name: "", source_type: "unknown", description: "", active: true });
       fetchSources();
     } catch (err: any) {
       setAddError(err.message || "Failed to add source");
@@ -144,16 +150,18 @@ export default function SourcesPage() {
                 <th>Source ID</th>
                 <th>Display Name</th>
                 <th>Type</th>
-                <th>Latest Data</th>
-                <th style={{ textAlign: "right" }}>Records</th>
+                {/* <th>Latest Data</th> */}
+                {/* <th style={{ textAlign: "right" }}>Records</th> */}
                 <th style={{ width: "120px", textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "2rem", color: "hsl(var(--text-muted))" }}>Loading sources...</td></tr>
+                // <tr><td colSpan={7} style={{ textAlign: "center", padding: "2rem", color: "hsl(var(--text-muted))" }}>Loading sources...</td></tr>
+                <tr><td colSpan={5} style={{ textAlign: "center", padding: "2rem", color: "hsl(var(--text-muted))" }}>Loading sources...</td></tr>
               ) : filteredSources.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "2rem", color: "hsl(var(--text-muted))" }}>No sources found.</td></tr>
+                // <tr><td colSpan={7} style={{ textAlign: "center", padding: "2rem", color: "hsl(var(--text-muted))" }}>No sources found.</td></tr>
+                <tr><td colSpan={5} style={{ textAlign: "center", padding: "2rem", color: "hsl(var(--text-muted))" }}>No sources found.</td></tr>
               ) : (
                 filteredSources.map(src => (
                   <tr key={src.source_id} style={{ opacity: src.active ? 1 : 0.55 }}>
@@ -171,8 +179,8 @@ export default function SourcesPage() {
                     <td style={{ fontWeight: 600 }}>{src.source_id}</td>
                     <td>{src.display_name || <span className="text-muted-col">-</span>}</td>
                     <td><span style={{ textTransform: "capitalize" }}>{src.source_type || "-"}</span></td>
-                    <td className="text-muted-col">{src.latest_at ? new Date(src.latest_at).toLocaleString() : "-"}</td>
-                    <td style={{ textAlign: "right" }}>{(src.record_count || 0).toLocaleString()}</td>
+                    {/* <td className="text-muted-col">{src.latest_at ? new Date(src.latest_at).toLocaleString() : "-"}</td> */}
+                    {/* <td style={{ textAlign: "right" }}>{(src.record_count || 0).toLocaleString()}</td> */}
                     <td style={{ textAlign: "center" }}>
                       <button
                         className="btn btn-sm btn-ghost"
