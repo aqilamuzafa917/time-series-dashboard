@@ -30,9 +30,9 @@
     "active": true
   },
   {
-    "metric": "fan power",
-    "warning_high": 3.0,
-    "critical_high": 5.0,
+    "metric": "network_usage",
+    "warning_high": 80.0,
+    "critical_high": 95.0,
     "active": false
   },
   {
