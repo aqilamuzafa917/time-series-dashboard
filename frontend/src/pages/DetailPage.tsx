@@ -34,12 +34,13 @@ export default function DetailPage() {
     return m;
   }, [thresholds]);
 
-  const computeStatus = (value: number, t?: ThresholdItem): "ok" | "warning" | "critical" => {
-    if (!t || !t.active) return "ok";
-    if (t.critical_high !== undefined && value > t.critical_high) return "critical";
-    if (t.warning_high !== undefined && value > t.warning_high) return "warning";
-    return "ok";
-  };
+  // computeStatus commented out as threshold logic is now run on the backend:
+  // const computeStatus = (value: number, t?: ThresholdItem): "ok" | "warning" | "critical" => {
+  //   if (!t || !t.active) return "ok";
+  //   if (t.critical_high !== undefined && value > t.critical_high) return "critical";
+  //   if (t.warning_high !== undefined && value > t.warning_high) return "warning";
+  //   return "ok";
+  // };
 
   const getStatColor = (status: "ok" | "warning" | "critical") => {
     if (status === "critical") return "hsl(var(--color-critical))";
@@ -222,7 +223,8 @@ export default function DetailPage() {
             {data?.summary && (
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "0.9rem", color: "hsl(var(--text-muted))", marginBottom: "0.25rem" }}>Current Value</div>
-                <div style={{ fontSize: "2rem", fontWeight: "bold", lineHeight: 1, color: getStatColor(computeStatus(data.summary.current, thresholdMap[metric!])) }}>
+                {/* color: getStatColor(computeStatus(data.summary.current, thresholdMap[metric!])) */}
+                <div style={{ fontSize: "2rem", fontWeight: "bold", lineHeight: 1, color: getStatColor(data.summary.status) }}>
                   {data.summary.current.toFixed(2)} <span style={{ fontSize: "1rem", color: "hsl(var(--text-muted))" }}>{data.timeseries[0]?.unit || ""}</span>
                 </div>
               </div>
@@ -291,15 +293,18 @@ export default function DetailPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
             <div className="card">
               <div className="stat-label">Minimum Value</div>
-              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(computeStatus(data.summary.min ?? 0, thresholdMap[metric!])) }}>{data.summary.min?.toFixed(2) || "N/A"}</div>
+              {/* color: getStatColor(computeStatus(data.summary.min ?? 0, thresholdMap[metric!])) */}
+              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(data.summary.status_min) }}>{data.summary.min?.toFixed(2) || "N/A"}</div>
             </div>
             <div className="card">
               <div className="stat-label">Average Value</div>
-              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(computeStatus(data.summary.avg ?? 0, thresholdMap[metric!])) }}>{data.summary.avg?.toFixed(2) || "N/A"}</div>
+              {/* color: getStatColor(computeStatus(data.summary.avg ?? 0, thresholdMap[metric!])) */}
+              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(data.summary.status_avg) }}>{data.summary.avg?.toFixed(2) || "N/A"}</div>
             </div>
             <div className="card">
               <div className="stat-label">Maximum Value</div>
-              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(computeStatus(data.summary.max ?? 0, thresholdMap[metric!])) }}>{data.summary.max?.toFixed(2) || "N/A"}</div>
+              {/* color: getStatColor(computeStatus(data.summary.max ?? 0, thresholdMap[metric!])) */}
+              <div className="stat-val" style={{ fontSize: "1.5rem", color: getStatColor(data.summary.status_max) }}>{data.summary.max?.toFixed(2) || "N/A"}</div>
             </div>
             <div className="card">
               <div className="stat-label">Data Points Count</div>

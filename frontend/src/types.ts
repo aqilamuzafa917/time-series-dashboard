@@ -32,6 +32,8 @@ export interface TimeseriesItem {
   count: number;
   unit: string;
   status: "ok" | "warning" | "critical";
+  status_min?: "ok" | "warning" | "critical";
+  status_max?: "ok" | "warning" | "critical";
 }
 
 export interface LatestItem {

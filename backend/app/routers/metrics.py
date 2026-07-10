@@ -192,11 +192,16 @@ async def metrics_timeseries(
         key = (row.get("time"), row.get("source_id"), row.get("source_type"), row.get("metric"))
         row["unit"] = unit_map.get(key)
         
+        metric_name = row.get("metric", "")
+        t = thresholds_map.get(metric_name, {})
+        
         avg_val = row.get("avg")
-        if avg_val is not None:
-            metric_name = row.get("metric", "")
-            t = thresholds_map.get(metric_name, {})
-            row["status"] = compute_status(avg_val, t)
+        min_val = row.get("min")
+        max_val = row.get("max")
+        
+        row["status"] = compute_status(avg_val, t) if avg_val is not None else "ok"
+        row["status_min"] = compute_status(min_val, t) if min_val is not None else "ok"
+        row["status_max"] = compute_status(max_val, t) if max_val is not None else "ok"
 
     return rows
 
@@ -318,16 +323,22 @@ async def metrics_detail(
     if summary_rows:
         r = summary_rows[0]
         current = r.get("current") or 0.0
+        avg_val = r.get("avg") or 0.0
+        min_val = r.get("min") or 0.0
+        max_val = r.get("max") or 0.0
         summary_item = {
             "source_id": source_id,
             "metric": metric,
             "current": current,
             "unit": r.get("unit") or "",
-            "avg": r.get("avg"),
-            "min": r.get("min"),
-            "max": r.get("max"),
+            "avg": avg_val,
+            "min": min_val,
+            "max": max_val,
             "count": r.get("count"),
-            "status": compute_status(current, t)
+            "status": compute_status(current, t),
+            "status_min": compute_status(min_val, t),
+            "status_avg": compute_status(avg_val, t),
+            "status_max": compute_status(max_val, t)
         }
         
     # 2. Timeseries
@@ -361,9 +372,14 @@ async def metrics_detail(
         row["source_id"] = source_id
         row["metric"] = metric
         row["unit"] = unit_map.get(row.get("time"))
+        
         avg_val = row.get("avg")
-        if avg_val is not None:
-            row["status"] = compute_status(avg_val, t)
+        min_val = row.get("min")
+        max_val = row.get("max")
+        
+        row["status"] = compute_status(avg_val, t) if avg_val is not None else "ok"
+        row["status_min"] = compute_status(min_val, t) if min_val is not None else "ok"
+        row["status_max"] = compute_status(max_val, t) if max_val is not None else "ok"
             
     return {
         "summary": summary_item,

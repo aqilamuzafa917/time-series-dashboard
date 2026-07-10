@@ -120,24 +120,24 @@ export default function ExplorerPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Thresholds
-  const [thresholds, setThresholds] = useState<ThresholdItem[]>([]);
-  useEffect(() => {
-    apiGet<ThresholdItem[]>("/api/thresholds").then(setThresholds).catch(() => {});
-  }, []);
+  // Thresholds (commented out as logic is now handled in backend)
+  // const [thresholds, setThresholds] = useState<ThresholdItem[]>([]);
+  // useEffect(() => {
+  //   apiGet<ThresholdItem[]>("/api/thresholds").then(setThresholds).catch(() => {});
+  // }, []);
 
-  const thresholdMap = React.useMemo(() => {
-    const m: Record<string, ThresholdItem> = {};
-    thresholds.forEach(t => { m[t.metric] = t; });
-    return m;
-  }, [thresholds]);
+  // const thresholdMap = React.useMemo(() => {
+  //   const m: Record<string, ThresholdItem> = {};
+  //   thresholds.forEach(t => { m[t.metric] = t; });
+  //   return m;
+  // }, [thresholds]);
 
-  const computeStatus = (value: number, t?: ThresholdItem): "ok" | "warning" | "critical" => {
-    if (!t || !t.active) return "ok";
-    if (t.critical_high !== undefined && value > t.critical_high) return "critical";
-    if (t.warning_high !== undefined && value > t.warning_high) return "warning";
-    return "ok";
-  };
+  // const computeStatus = (value: number, t?: ThresholdItem): "ok" | "warning" | "critical" => {
+  //   if (!t || !t.active) return "ok";
+  //   if (t.critical_high !== undefined && value > t.critical_high) return "critical";
+  //   if (t.warning_high !== undefined && value > t.warning_high) return "warning";
+  //   return "ok";
+  // };
 
   const getStatColor = (status: "ok" | "warning" | "critical") => {
     if (status === "critical") return "hsl(var(--color-critical))";
@@ -429,9 +429,14 @@ export default function ExplorerPage() {
                         <td className="text-muted-col">{new Date(row.time).toLocaleString()}</td>
                         <td>{row.source_id}</td>
                         <td style={{ textTransform: "capitalize" }}>{row.metric.replace("_", " ")}</td>
+                        {/* Old local threshold logic:
                         <td style={{ fontWeight: 600, color: getStatColor(computeStatus(row.avg, thresholdMap[row.metric])) }}>{row.avg.toFixed(2)}</td>
                         <td style={{ color: getStatColor(computeStatus(row.min, thresholdMap[row.metric])) }}>{row.min.toFixed(2)}</td>
                         <td style={{ color: getStatColor(computeStatus(row.max, thresholdMap[row.metric])) }}>{row.max.toFixed(2)}</td>
+                        */}
+                        <td style={{ fontWeight: 600, color: getStatColor(row.status) }}>{row.avg.toFixed(2)}</td>
+                        <td style={{ color: getStatColor(row.status_min || "ok") }}>{row.min.toFixed(2)}</td>
+                        <td style={{ color: getStatColor(row.status_max || "ok") }}>{row.max.toFixed(2)}</td>
                         <td className="text-muted-col">{row.count} rows</td>
                       </tr>
                     ))}
