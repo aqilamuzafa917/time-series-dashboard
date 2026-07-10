@@ -354,7 +354,7 @@ device_metrics,source_id=sensor-01,source_type=sensor,metric=disk_io value=117.6
 | 3 | Kiro | Generate project scaffold | Created Docker Compose, folder structure, and backend/frontend scaffolding | Adjusted environment configuration and persistence |
 | 4 | Antigravity | Implement InfluxDB client | Generated health check, SQL helper, and Line Protocol writer | Verified against InfluxDB 3 Core documentation |
 | 5 | Antigravity | Generate REST API | Implemented health, summary, latest, timeseries, and ingestion endpoints | Reviewed queries and response models |
-| 6 | Antigravity | Generate data generator | Created synthetic monitoring data generator | Tuned metrics, spikes, timestamps, and dataset realism |
+| 6 | Antigravity | Generate data generator | Created synthetic monitoring data generator | Adjusted the batch size to 10.000 rows according to the reccomended value on InfluxDB Docs. Verified the generated data on the InfluxDB |
 | 7 | Antigravity | Generate React frontend | Created React pages, routing, and reusable components | Simplified component structure and navigation |
 | 8 | Antigravity | Generate dashboard UI | Implemented charts, summary cards, tables, filters, and status indicators | Improved layout and API integration |
 | 9 | ChatGPT | Explain generated code | Explained architecture and implementation in Bahasa Indonesia | Used for interview preparation and code understanding |
