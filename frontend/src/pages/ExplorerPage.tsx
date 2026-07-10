@@ -17,12 +17,14 @@ const MultiSelectChecklist = ({
   options,
   selected,
   onChange,
-  label
+  label,
+  width = "220px"
 }: {
   options: string[];
   selected: string[];
   onChange: (val: string) => void;
   label: string;
+  width?: string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -38,14 +40,14 @@ const MultiSelectChecklist = ({
   }, []);
 
   return (
-    <div className="multi-select-container" ref={containerRef} style={{ position: 'relative', width: '220px', outline: 'none' }}>
+    <div className="multi-select-container" ref={containerRef} style={{ position: 'relative', width: width, outline: 'none' }}>
       <div 
         className="input-control" 
         onClick={() => setIsOpen(!isOpen)}
         style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', userSelect: 'none', outline: 'none' }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {selected.length === 0 ? `All ${label}s` : `${selected.length} selected`}
+          {selected.length === 0 ? (label === "Status" ? "All" : `All ${label}s`) : `${selected.length} selected`}
         </span>
         <i className={`ri-arrow-${isOpen ? 'up' : 'down'}-s-line`}></i>
       </div>
@@ -77,7 +79,7 @@ const MultiSelectChecklist = ({
                   onChange={() => onChange(opt)}
                   style={{ marginRight: '10px', width: '16px', height: '16px', cursor: 'pointer', outline: 'none' }}
                 />
-                <span style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))' }}>
+                <span style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', textTransform: 'capitalize' }}>
                   {opt.replace("_", " ")}
                 </span>
               </label>
@@ -124,10 +126,13 @@ export default function ExplorerPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 100;
 
+  // Status filter state (multi select list)
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedSources, selectedMetrics, timeRange, interval]);
+  }, [selectedSources, selectedMetrics, timeRange, interval, selectedStatuses]);
 
   // Thresholds (commented out as logic is now handled in backend)
   // const [thresholds, setThresholds] = useState<ThresholdItem[]>([]);
@@ -275,12 +280,33 @@ export default function ExplorerPage() {
 
   const COLORS = ["#1A8FE3", "#F5A623", "#2FBF9F", "#6FCF97", "#D6249F", "#8884d8", "#FF8042"];
 
-  const paginatedRows = React.useMemo(() => {
-    if (!rawRows) return [];
-    return rawRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-  }, [rawRows, currentPage]);
+  const toggleStatusFilter = (status: string) => {
+    setSelectedStatuses(prev => 
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    );
+  };
 
-  const totalPages = rawRows ? Math.ceil(rawRows.length / rowsPerPage) : 0;
+  const filteredRows = React.useMemo(() => {
+    if (!rawRows) return [];
+    if (selectedStatuses.length === 0) return rawRows;
+    
+    return rawRows.filter(row => {
+      const isCrit = row.status === "critical" || row.status_min === "critical" || row.status_max === "critical";
+      const isWarn = row.status === "warning" || row.status_min === "warning" || row.status_max === "warning";
+      const isOk = row.status === "ok" && (row.status_min === "ok" || !row.status_min) && (row.status_max === "ok" || !row.status_max);
+      
+      if (selectedStatuses.includes("critical") && isCrit) return true;
+      if (selectedStatuses.includes("warning") && isWarn) return true;
+      if (selectedStatuses.includes("ok") && isOk) return true;
+      return false;
+    });
+  }, [rawRows, selectedStatuses]);
+
+  const paginatedRows = React.useMemo(() => {
+    return filteredRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  }, [filteredRows, currentPage]);
+
+  const totalPages = Math.ceil(filteredRows.length / rowsPerPage);
 
   return (
     <div>
@@ -416,13 +442,30 @@ export default function ExplorerPage() {
           )}
 
           {/* Raw Grid Table */}
-          <div className="table-container" style={{ marginTop: 0 }}>
+          <div className="table-container" style={{ marginTop: 0, overflow: "visible" }}>
             <div className="table-header-box">
-              <h3 className="table-title">Timeseries Bucket Rows</h3>
+              <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                <h3 className="table-title">Timeseries Bucket Rows</h3>
+                {rawRows && rawRows.length > 0 && (
+                  <span style={{ color: "hsl(var(--text-muted))", fontSize: "0.85rem" }}>
+                    {filteredRows.length} records {filteredRows.length !== rawRows.length && `(filtered from ${rawRows.length})`}
+                  </span>
+                )}
+              </div>
+
               {rawRows && rawRows.length > 0 && (
-                <span style={{ color: "hsl(var(--text-muted))", fontSize: "0.85rem" }}>
-                  {rawRows.length} records
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <label style={{ fontSize: "0.85rem", color: "hsl(var(--text-secondary))", fontWeight: 500 }}>
+                    Status:
+                  </label>
+                  <MultiSelectChecklist
+                    options={["ok", "warning", "critical"]}
+                    selected={selectedStatuses}
+                    onChange={toggleStatusFilter}
+                    label="Status"
+                    width="150px"
+                  />
+                </div>
               )}
             </div>
             <div className="table-wrapper">
@@ -479,7 +522,6 @@ export default function ExplorerPage() {
               )}
             </div>
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
               <div
                 className="pagination-container"
@@ -487,12 +529,11 @@ export default function ExplorerPage() {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  marginTop: "1.5rem",
                   padding: "0.85rem 1.25rem",
                   background: "hsl(var(--bg-card))",
-                  border: "1px solid hsl(var(--border-glass))",
-                  borderRadius: "8px",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)"
+                  borderTop: "1px solid hsl(var(--border-glass))",
+                  borderBottomLeftRadius: "6px",
+                  borderBottomRightRadius: "6px"
                 }}
               >
                 <div style={{ color: "hsl(var(--text-secondary))", fontSize: "0.875rem", fontWeight: 500 }}>
