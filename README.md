@@ -373,3 +373,6 @@ device_metrics,source_id=sensor-01,source_type=sensor,metric=disk_io value=117.6
 | 22 | Antigravity | Fix color coding logic | Ensured color coding respects active/inactive threshold status | Verified status computation in backend |
 | 23 | Antigravity | Fix unit display | Fetched unit directly from latest data point instead of hardcoded config | Verified units display correctly on Dashboard cards |
 | 24 | Antigravity | Support raw metric editing | Removed metric name parsing and added raw metric name edit functionality | Verified metrics match database exactly |
+| 25 | Antigravity | Group and sort dashboard cards | Grouped cards by source_id, sorted them alphabetically by metric, and moved the global trend graph below cards | Verified dashboard layout and sorting behavior |
+| 26 | Antigravity | Centralize threshold status | Moved threshold evaluations (min, avg, max) to the backend, removing duplicate evaluation logic from DetailPage and ExplorerPage | Verified backend API responses and frontend status coloring and reference lines render correctly |
+| 27 | Antigravity | Paginate Explorer data table | Implemented 100 rows per page client-side pagination on ExplorerPage to prevent browser hang and PDF print crashes on large datasets | Verified page controls, sorting, and complete CSV export |
