@@ -120,6 +120,15 @@ export default function ExplorerPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 100;
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedSources, selectedMetrics, timeRange, interval]);
+
   // Thresholds (commented out as logic is now handled in backend)
   // const [thresholds, setThresholds] = useState<ThresholdItem[]>([]);
   // useEffect(() => {
@@ -265,6 +274,13 @@ export default function ExplorerPage() {
   };
 
   const COLORS = ["#1A8FE3", "#F5A623", "#2FBF9F", "#6FCF97", "#D6249F", "#8884d8", "#FF8042"];
+
+  const paginatedRows = React.useMemo(() => {
+    if (!rawRows) return [];
+    return rawRows.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  }, [rawRows, currentPage]);
+
+  const totalPages = rawRows ? Math.ceil(rawRows.length / rowsPerPage) : 0;
 
   return (
     <div>
@@ -424,7 +440,20 @@ export default function ExplorerPage() {
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Original full mapping:
                     {rawRows.map((row, idx) => (
+                      <tr key={`raw-row-${idx}`}>
+                        <td className="text-muted-col">{new Date(row.time).toLocaleString()}</td>
+                        <td>{row.source_id}</td>
+                        <td style={{ textTransform: "capitalize" }}>{row.metric.replace("_", " ")}</td>
+                        <td style={{ fontWeight: 600, color: getStatColor(row.status) }}>{row.avg.toFixed(2)}</td>
+                        <td style={{ color: getStatColor(row.status_min || "ok") }}>{row.min.toFixed(2)}</td>
+                        <td style={{ color: getStatColor(row.status_max || "ok") }}>{row.max.toFixed(2)}</td>
+                        <td className="text-muted-col">{row.count} rows</td>
+                      </tr>
+                    ))}
+                    */}
+                    {paginatedRows.map((row, idx) => (
                       <tr key={`raw-row-${idx}`}>
                         <td className="text-muted-col">{new Date(row.time).toLocaleString()}</td>
                         <td>{row.source_id}</td>
@@ -449,6 +478,101 @@ export default function ExplorerPage() {
                 </div>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div
+                className="pagination-container"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: "1.5rem",
+                  padding: "0.85rem 1.25rem",
+                  background: "hsl(var(--bg-card))",
+                  border: "1px solid hsl(var(--border-glass))",
+                  borderRadius: "8px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)"
+                }}
+              >
+                <div style={{ color: "hsl(var(--text-secondary))", fontSize: "0.875rem", fontWeight: 500 }}>
+                  Showing <span style={{ color: "hsl(var(--text-primary))", fontWeight: 600 }}>{((currentPage - 1) * rowsPerPage) + 1}</span> to{" "}
+                  <span style={{ color: "hsl(var(--text-primary))", fontWeight: 600 }}>{Math.min(currentPage * rowsPerPage, rawRows ? rawRows.length : 0)}</span> of{" "}
+                  <span style={{ color: "hsl(var(--text-primary))", fontWeight: 600 }}>{rawRows?.length}</span> records
+                </div>
+
+                <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                  <button
+                    className="btn btn-sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.4rem 0.85rem",
+                      border: "1px solid hsl(var(--border-glass))",
+                      background: currentPage === 1 ? "transparent" : "hsl(var(--bg-card))",
+                      cursor: currentPage === 1 ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    <i className="ri-arrow-left-s-line" style={{ fontSize: "1rem" }}></i> Previous
+                  </button>
+
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum = i + 1;
+                    if (totalPages > 5) {
+                      if (currentPage > 3) {
+                        pageNum = currentPage - 3 + i;
+                        if (pageNum + (4 - i) > totalPages) {
+                          pageNum = totalPages - 4 + i;
+                        }
+                      }
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        className={`btn btn-sm ${currentPage === pageNum ? "btn-primary" : ""}`}
+                        onClick={() => setCurrentPage(pageNum)}
+                        style={{
+                          minWidth: "32px",
+                          height: "32px",
+                          padding: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: "4px",
+                          border: currentPage === pageNum ? "none" : "1px solid hsl(var(--border-glass))",
+                          background: currentPage === pageNum ? "hsl(var(--color-primary))" : "hsl(var(--bg-card))",
+                          fontWeight: 600,
+                          cursor: "pointer"
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    className="btn btn-sm"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.4rem 0.85rem",
+                      border: "1px solid hsl(var(--border-glass))",
+                      background: currentPage === totalPages ? "transparent" : "hsl(var(--bg-card))",
+                      cursor: currentPage === totalPages ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    Next <i className="ri-arrow-right-s-line" style={{ fontSize: "1rem" }}></i>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
