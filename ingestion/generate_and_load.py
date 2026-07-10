@@ -139,7 +139,7 @@ def main():
     total_points = len(points)
     print(f"Successfully generated {total_points} total rows.")
 
-    batch_size = 500
+    batch_size = 10000
     batches = [points[i:i + batch_size] for i in range(0, total_points, batch_size)]
 
     print(f"Writing data to InfluxDB database '{INFLUXDB_DATABASE}' in {len(batches)} batches of {batch_size}...")
