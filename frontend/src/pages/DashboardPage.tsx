@@ -90,10 +90,18 @@ export default function DashboardPage() {
       .then((data) => setActiveSources(data.sources))
       .catch(() => setActiveSources([]));
   }, []);
-
   useEffect(() => {
     // Wait until active sources have been resolved
     if (activeSources === null) return;
+
+    if (activeSources.length === 0) {
+      setSummaryData([]);
+      setLatestData([]);
+      setTimeseriesData([]);
+      setLoading(false);
+      setIsRefetching(false);
+      return;
+    }
 
     if (hasLoadedOnce) {
       setIsRefetching(true);
@@ -105,8 +113,7 @@ export default function DashboardPage() {
     const startISO = new Date(timeRange.start).toISOString();
     const endISO = new Date(timeRange.end).toISOString();
 
-    // Pass active source IDs as filter; if list is empty no data will match
-    const sourceFilter = activeSources.length > 0 ? { source_id: activeSources } : {};
+    const sourceFilter = { source_id: activeSources };
 
     Promise.all([
       apiGet<SummaryItem[]>("/api/metrics/summary", { start: startISO, end: endISO, ...sourceFilter }),

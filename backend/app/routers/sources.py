@@ -71,7 +71,11 @@ async def get_sources(request: Request, settings: Settings = Depends(get_setting
         pass
     
     # Merge with overrides from sources.json
-    overrides = request.app.state.sources
+    try:
+        with open(_get_sources_file(), "r") as f:
+            overrides = json.load(f)
+    except Exception:
+        overrides = []
     override_map = {o["source_id"]: o for o in overrides}
     
     result = []
@@ -137,7 +141,12 @@ async def create_source(source: SourceCreate, request: Request):
     if not source.source_id or not source.display_name or not source.source_type:
         raise HTTPException(status_code=422, detail="Missing required fields")
         
-    sources = request.app.state.sources
+    try:
+        with open(_get_sources_file(), "r") as f:
+            sources = json.load(f)
+    except Exception:
+        sources = []
+        
     if any(s["source_id"] == source.source_id for s in sources):
         raise HTTPException(status_code=409, detail="Source ID already exists")
         
@@ -146,12 +155,17 @@ async def create_source(source: SourceCreate, request: Request):
     
     with open(_get_sources_file(), "w") as f:
         json.dump(sources, f, indent=2)
+    request.app.state.sources = sources
         
     return new_entry
 
 @router.put("/sources/{source_id}")
 async def update_source(source_id: str, update: SourceUpdate, request: Request):
-    sources = request.app.state.sources
+    try:
+        with open(_get_sources_file(), "r") as f:
+            sources = json.load(f)
+    except Exception:
+        sources = []
     
     target = next((s for s in sources if s["source_id"] == source_id), None)
     if not target:
@@ -175,5 +189,6 @@ async def update_source(source_id: str, update: SourceUpdate, request: Request):
         
     with open(_get_sources_file(), "w") as f:
         json.dump(sources, f, indent=2)
+    request.app.state.sources = sources
         
     return target
